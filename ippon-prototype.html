@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>IPPON プロトタイプ</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+
+  :root{
+    --bg:        #0B0D12;
+    --panel:     #15181F;
+    --panel-line:#262B36;
+    --gold:      #F5C518;
+    --gold-dim:  #8C6E12;
+    --red:       #C74B3E;
+    --text:      #F5F1E8;
+    --text-dim:  #8A8F9C;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; margin:0; }
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:'Noto Sans JP', system-ui, sans-serif;
+    display:flex;
+    min-height:100vh;
+  }
+
+  /* ---- 左：操作パネル ---- */
+  .control{
+    width:340px;
+    flex-shrink:0;
+    background:var(--panel);
+    border-right:1px solid var(--panel-line);
+    padding:28px 26px;
+    display:flex;
+    flex-direction:column;
+    gap:22px;
+    overflow-y:auto;
+  }
+  .control h1{
+    font-family:'Oswald', sans-serif;
+    font-size:14px;
+    letter-spacing:0.18em;
+    color:var(--text-dim);
+    margin:0;
+    font-weight:600;
+  }
+
+  /* ステージ切り替え */
+  .stage-toggle{
+    display:flex;
+    border:1px solid var(--panel-line);
+    border-radius:8px;
+    overflow:hidden;
+  }
+  .stage-btn{
+    flex:1;
+    background:transparent;
+    color:var(--text-dim);
+    font-size:13px;
+    padding:10px 0;
+    border:none;
+  }
+  .stage-btn.active{
+    background:var(--gold-dim);
+    color:var(--text);
+  }
+  .stage-sub{
+    font-size:11px;
+    color:var(--text-dim);
+    margin-top:-12px;
+  }
+
+  .score-readout{
+    font-family:'Oswald', sans-serif;
+    font-size:64px;
+    font-weight:700;
+    line-height:1;
+    color:var(--gold);
+    font-variant-numeric: tabular-nums;
+  }
+  .score-readout .max{
+    font-size:28px;
+    color:var(--text-dim);
+  }
+  .score-readout span.label{
+    font-size:15px;
+    color:var(--text-dim);
+    font-family:'Noto Sans JP', sans-serif;
+    display:block;
+    margin-top:6px;
+    letter-spacing:0.05em;
+  }
+
+  button{
+    font-family:'Oswald', sans-serif;
+    font-weight:600;
+    letter-spacing:0.06em;
+    border-radius:6px;
+    border:none;
+    cursor:pointer;
+    transition:transform .08s ease, background .15s ease;
+  }
+  button:active{ transform:scale(0.96); }
+  button:disabled{ opacity:0.35; cursor:default; }
+  button:disabled:active{ transform:none; }
+
+  .judge-label{
+    font-size:12px;
+    color:var(--text-dim);
+    letter-spacing:0.05em;
+    margin-bottom:-8px;
+  }
+  .judge-row{ display:flex; gap:10px; }
+  .btn-plus{
+    flex:1;
+    background:var(--gold);
+    color:#1A1204;
+    font-size:20px;
+    padding:18px 0;
+  }
+  .btn-plus:hover{ background:#f0c559; }
+  .btn-plus.small{ font-size:16px; padding:14px 0; background:var(--gold-dim); color:var(--text); }
+  .btn-plus.small:hover{ background:#8f7530; }
+
+  .btn-row{ display:flex; gap:10px; }
+  .btn-secondary{
+    flex:1;
+    background:transparent;
+    color:var(--text-dim);
+    border:1px solid var(--panel-line);
+    font-size:12px;
+    padding:12px 0;
+  }
+  .btn-secondary:hover{ color:var(--text); border-color:var(--gold-dim); }
+
+  .note{
+    margin-top:auto;
+    font-size:11px;
+    line-height:1.7;
+    color:var(--text-dim);
+    border-top:1px solid var(--panel-line);
+    padding-top:16px;
+  }
+  .note b{ color:var(--gold); }
+
+  /* ---- 右：OBS表示エリア ---- */
+  .obs-wrap{
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+    /* 透過を示すチェッカー柄（実際のOBS用ページでは背景そのものが透明になります） */
+    background-image:
+      linear-gradient(45deg, #1c1f27 25%, transparent 25%),
+      linear-gradient(-45deg, #1c1f27 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #1c1f27 75%),
+      linear-gradient(-45deg, transparent 75%, #1c1f27 75%);
+    background-size:28px 28px;
+    background-position:0 0, 0 14px, 14px -14px, -14px 0px;
+    background-color:#0f1116;
+  }
+  .obs-label{
+    position:absolute;
+    top:20px; left:24px;
+    font-family:'Oswald', sans-serif;
+    font-size:12px;
+    letter-spacing:0.2em;
+    color:var(--text-dim);
+  }
+  .obs-label b{ color:var(--red); }
+
+  #frame{
+    width:560px;
+    height:315px;
+    filter: drop-shadow(0 6px 24px rgba(0,0,0,0.6)) drop-shadow(0 0 0 rgba(227,178,60,0));
+    transition: filter .08s steps(1,end);
+  }
+  #frame.pop{
+    filter: drop-shadow(0 6px 24px rgba(0,0,0,0.6)) drop-shadow(0 0 22px rgba(245,197,24,0.75));
+  }
+  .ring{
+    stroke:rgba(0,0,0,0.35);
+    stroke-width:1;
+  }
+  .ring.new{
+    animation: ringSnap .1s steps(2,end);
+  }
+  @keyframes ringSnap{
+    0%   { opacity:0; transform:scale(1.05); transform-origin:320px 180px; }
+    60%  { opacity:1; transform:scale(1);    transform-origin:320px 180px; }
+    100% { opacity:1; transform:scale(1);    transform-origin:320px 180px; }
+  }
+
+  /* ---- IPPON 垂れ幕 ---- */
+  .ippon-banner{
+    position:absolute;
+    left:0; right:0;
+    top:50%;
+    height:26%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    background:#0A0A0C;
+    border-top:3px solid var(--gold);
+    border-bottom:3px solid var(--gold);
+    box-shadow:0 12px 34px rgba(0,0,0,0.6);
+    opacity:0;
+    transform:translateY(-50%) translateX(130%);
+    z-index:5;
+  }
+  .ippon-banner span{
+    font-family:'Oswald', sans-serif;
+    font-weight:700;
+    font-size:clamp(60px, 15vw, 168px);
+    letter-spacing:0.16em;
+    color:#F5F1E8;
+  }
+  .ippon-banner.show{
+    animation: bannerSlide .5s cubic-bezier(.25,.85,.25,1.02) forwards;
+  }
+  @keyframes bannerSlide{
+    0%   { transform:translateY(-50%) translateX(130%); opacity:0; }
+    65%  { transform:translateY(-50%) translateX(-2%);  opacity:1; }
+    100% { transform:translateY(-50%) translateX(0%);   opacity:1; }
+  }
+</style>
+</head>
+<body>
+
+  <!-- 操作パネル -->
+  <div class="control">
+    <h1>操作パネル</h1>
+
+    <div>
+      <div class="stage-toggle">
+        <button class="stage-btn active" id="stageBlock" data-max="10">ブロック選</button>
+        <button class="stage-btn" id="stageFinal" data-max="16">決勝戦</button>
+      </div>
+      <div class="stage-sub" id="stageSub">満点：10点</div>
+    </div>
+
+    <div class="score-readout">
+      <span id="scoreNumber">0</span><span class="max" id="maxLabel">/10</span>
+      <span class="label">現在の得点</span>
+    </div>
+
+    <div>
+      <div class="judge-label">採点者の持ち点（最大2点。＋1を2回押せば2点になります）</div>
+      <div class="judge-row">
+        <button class="btn-plus" id="plus1Btn">＋1</button>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-secondary" id="minusBtn">－1</button>
+      <button class="btn-secondary" id="resetBtn">リセット</button>
+    </div>
+
+    <div class="note">
+      <b>これは仮のプロトタイプです。</b><br>
+      サーバーを介さず、このページの中だけで＋ボタンとOBS表示をつなげています。
+      ブロック選は10点満点、決勝戦は16点満点で、満点に達すると枠が隙間なく埋まりきります。<br><br>
+      右側のチェッカー柄は「ここは透過されます」という目印です。実際にOBSで使う本番用ページ（このパネルを外したもの）は背景を透明にするので、ブラウザソースに読み込むと配信映像の上に枠だけが重なって見えます。<br><br>
+      枠は額縁のように中を抜いた形で、幅はどのマスも均一にしています。縦方向のスペースが先に尽きるので、最後の1点でちょうど横棒になって閉じます。<br><br>
+      ＋1のたびに「カチッ」と切り替わる動きと、点が入るたびに1段ずつ音階が上がっていく電子音を鳴らします（リセットすると音階も最初のドに戻ります）。満点になった瞬間には、横から黒地に白文字の「IPPON」の垂れ幕が登場し、うっすらとした「シャーン」というきらめき音が添えられます。
+    </div>
+  </div>
+
+  <!-- OBS表示エリア -->
+  <div class="obs-wrap">
+    <div class="obs-label">OBS <b>PREVIEW</b> — ブラウザソース想定</div>
+    <svg id="frame" viewBox="0 0 640 360" xmlns="http://www.w3.org/2000/svg"></svg>
+    <div class="ippon-banner" id="ipponBanner"><span>IPPON</span></div>
+  </div>
+
+<script>
+  let score = 0;
+  let maxScore = 10;
+
+  const OUTER = 10;         // 一番外側の枠の位置
+  const W = 640, H = 360;   // キャンバス全体（16:9）
+  const CX = W/2, CY = H/2; // 中心
+
+  const svg = document.getElementById('frame');
+  const frameWrap = document.getElementById('frame');
+  const scoreNumber = document.getElementById('scoreNumber');
+  const maxLabel = document.getElementById('maxLabel');
+  const stageSub = document.getElementById('stageSub');
+  const stageBlockBtn = document.getElementById('stageBlock');
+  const stageFinalBtn = document.getElementById('stageFinal');
+  const plus1Btn = document.getElementById('plus1Btn');
+  const minusBtn = document.getElementById('minusBtn');
+
+  function render(prevScore){
+    // 縦方向を基準に、額縁の幅がどのマスでも均一になるように刻む
+    // 最後の1枠は縦方向がぴったりゼロになるので、自然と横棒になる
+    const thickness = (CY - OUTER) / maxScore;
+    let svgMarkup = '';
+
+    for(let i = 0; i < score; i++){
+      const insetX = OUTER + i * thickness;
+      const insetY = OUTER + i * thickness;
+      const sizeX = W - insetX * 2;
+      const sizeY = H - insetY * 2;
+      if(sizeX <= 0 || sizeY <= 0) break;
+
+      const depthRatio = i / Math.max(1, maxScore - 1);
+      const lightness = 40 + depthRatio * 28; // 40% -> 68%
+      const fill = `hsl(48, 92%, ${lightness}%)`;
+      const isNew = i >= prevScore;
+
+      const innerX = insetX + thickness;
+      const innerY = insetY + thickness;
+      const innerSizeX = Math.max(0, sizeX - thickness * 2);
+      const innerSizeY = Math.max(0, sizeY - thickness * 2);
+
+      // 額縁のように中を抜いた形（外側の四角 - 内側の四角）
+      const d = `M${insetX} ${insetY} H${insetX + sizeX} V${insetY + sizeY} H${insetX} Z
+                  M${innerX} ${innerY} H${innerX + innerSizeX} V${innerY + innerSizeY} H${innerX} Z`;
+
+      svgMarkup += `<path class="ring${isNew ? ' new' : ''}" d="${d}" fill-rule="evenodd" fill="${fill}" />`;
+
+      // 立体感（外周＝ハイライト、内周＝シャドウ）
+      svgMarkup += `<line x1="${insetX}" y1="${insetY}" x2="${insetX+sizeX}" y2="${insetY}" stroke="#fff" stroke-width="2" opacity="0.35"/>`;
+      svgMarkup += `<line x1="${insetX}" y1="${insetY}" x2="${insetX}" y2="${insetY+sizeY}" stroke="#fff" stroke-width="2" opacity="0.35"/>`;
+      svgMarkup += `<line x1="${innerX}" y1="${innerY+innerSizeY}" x2="${innerX+innerSizeX}" y2="${innerY+innerSizeY}" stroke="#000" stroke-width="2" opacity="0.25"/>`;
+      svgMarkup += `<line x1="${innerX+innerSizeX}" y1="${innerY}" x2="${innerX+innerSizeX}" y2="${innerY+innerSizeY}" stroke="#000" stroke-width="2" opacity="0.25"/>`;
+    }
+
+    svg.innerHTML = svgMarkup;
+    scoreNumber.textContent = score;
+    maxLabel.textContent = '/' + maxScore;
+  }
+
+  function pop(){
+    frameWrap.classList.add('pop');
+    setTimeout(() => frameWrap.classList.remove('pop'), 110);
+  }
+
+  // ---- 効果音（ファイル不要、その場で生成する電子音。点が入るたびに音階が1段ずつ上がる） ----
+  let audioCtx = null;
+  function getAudioCtx(){
+    if(!audioCtx){
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if(audioCtx.state === 'suspended'){ audioCtx.resume(); }
+    return audioCtx;
+  }
+
+  // ド・レ・ミ…と2オクターブぶん上がっていく音階（満点16点まで足りるように16音）
+  const SCALE = [
+    261.63, 293.66, 329.63, 349.23, 392.00, 440.00, 493.88,
+    523.25, 587.33, 659.25, 698.46, 783.99, 880.00, 987.77,
+    1046.50, 1174.66
+  ];
+
+  function playNote(freq){
+    const ctx = getAudioCtx();
+    const now = ctx.currentTime;
+
+    // 芯になる電子音（きれいなサイン波）
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.value = freq;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.5, now + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.16);
+    osc.connect(g).connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.18);
+
+    // 電子音らしい硬さを足す（1オクターブ上のスクエア波を軽く重ねる）
+    const osc2 = ctx.createOscillator();
+    osc2.type = 'square';
+    osc2.frequency.value = freq * 2;
+    const g2 = ctx.createGain();
+    g2.gain.setValueAtTime(0.0001, now);
+    g2.gain.exponentialRampToValueAtTime(0.12, now + 0.006);
+    g2.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
+    osc2.connect(g2).connect(ctx.destination);
+    osc2.start(now);
+    osc2.stop(now + 0.12);
+  }
+
+  function playScoreSound(currentScore){
+    const idx = Math.min(currentScore - 1, SCALE.length - 1);
+    if(idx >= 0){ playNote(SCALE[idx]); }
+  }
+
+  // IPPON垂れ幕に添える、うっすらとした「シャーン」というきらめき音
+  function playShimmerSound(){
+    const ctx = getAudioCtx();
+    const now = ctx.currentTime;
+
+    // 高域のノイズシマー（うっすら、長めに伸ばす）
+    const size = Math.floor(ctx.sampleRate * 2.0);
+    const buffer = ctx.createBuffer(1, size, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for(let i = 0; i < size; i++){ data[i] = Math.random() * 2 - 1; }
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = 5000;
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.0001, now);
+    noiseGain.gain.linearRampToValueAtTime(0.09, now + 0.03);
+    noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 2.0);
+    noise.connect(hp).connect(noiseGain).connect(ctx.destination);
+    noise.start(now);
+
+    // 高音のきらめき（控えめな倍音を数本重ねて、ゆっくり消えていく）
+    const shimmerFreqs = [3200, 4300, 5600, 7100];
+    shimmerFreqs.forEach((freq, idx) => {
+      const o = ctx.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = freq;
+      const og = ctx.createGain();
+      const amp = 0.04 / (idx + 1);
+      og.gain.setValueAtTime(0.0001, now);
+      og.gain.linearRampToValueAtTime(amp, now + 0.015);
+      og.gain.exponentialRampToValueAtTime(0.0001, now + 1.8 - idx * 0.15);
+      o.connect(og).connect(ctx.destination);
+      o.start(now);
+      o.stop(now + 1.9);
+    });
+  }
+
+  const ipponBanner = document.getElementById('ipponBanner');
+
+  function showIpponBanner(){
+    ipponBanner.classList.remove('show');
+    void ipponBanner.offsetWidth; // 再生済みのアニメーションをリセットして毎回頭から流す
+    ipponBanner.classList.add('show');
+    playShimmerSound();
+  }
+
+  function hideIpponBanner(){
+    ipponBanner.classList.remove('show');
+  }
+
+  function addPoints(pts){
+    const prev = score;
+    score = Math.min(maxScore, score + pts);
+    if(score !== prev){
+      render(prev);
+      pop();
+      playScoreSound(score);
+      if(score === maxScore){ showIpponBanner(); }
+    }
+  }
+
+  function setStage(max, btnActive, btnInactive, label){
+    maxScore = max;
+    score = Math.min(score, maxScore);
+    btnActive.classList.add('active');
+    btnInactive.classList.remove('active');
+    stageSub.textContent = '満点：' + max + '点';
+    hideIpponBanner();
+    render(score); // ステージ変更時は新規演出なしで再描画
+  }
+
+  plus1Btn.addEventListener('click', () => addPoints(1));
+
+  minusBtn.addEventListener('click', () => {
+    if(score > 0){
+      score -= 1;
+      render(score);
+      if(score < maxScore){ hideIpponBanner(); }
+    }
+  });
+
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    score = 0;
+    render(0);
+    hideIpponBanner();
+  });
+
+  stageBlockBtn.addEventListener('click', () => setStage(10, stageBlockBtn, stageFinalBtn, 'ブロック選'));
+  stageFinalBtn.addEventListener('click', () => setStage(16, stageFinalBtn, stageBlockBtn, '決勝戦'));
+
+  render(0);
+</script>
+
+</body>
+</html>

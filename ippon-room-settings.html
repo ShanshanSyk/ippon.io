@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>部屋の設定 - IPPON</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+  :root{
+    --gold:#FFE900; --ink:#14140F; --ink-dim:#5A5A44; --bar:#0A0A0C;
+    --white:#FFFFFF; --red:#C7302B;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; margin:0; }
+  body{ background:var(--gold); color:var(--ink); font-family:'Noto Sans JP', system-ui, sans-serif; }
+
+  .topbar{
+    background:var(--bar); color:#fff;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 24px;
+  }
+  .topbar .logo{ font-family:'Oswald', sans-serif; font-weight:700; font-size:18px; letter-spacing:0.15em; color:var(--gold); }
+  .operator-btn{
+    background:transparent; border:1px solid rgba(255,255,255,0.25); color:var(--gold);
+    font-size:12px; padding:5px 10px; border-radius:14px; cursor:pointer;
+    font-family:'Noto Sans JP', sans-serif;
+  }
+  .operator-btn:hover{ border-color:var(--gold); }
+  .operator-dropdown{
+    display:none;
+    position:absolute; right:0; top:calc(100% + 6px);
+    background:#1C1C16; border:1px solid rgba(255,255,255,0.15);
+    border-radius:8px; overflow:hidden; z-index:60;
+    min-width:140px;
+  }
+  .operator-dropdown.show{ display:block; }
+  .operator-dropdown button{
+    display:block; width:100%; text-align:left;
+    background:transparent; border:none; color:#EDEDED;
+    font-size:13px; padding:11px 14px; cursor:pointer;
+    font-family:'Noto Sans JP', sans-serif;
+  }
+  .operator-dropdown button:hover{ background:rgba(255,255,255,0.08); }
+  .operator-dropdown button:first-child{ border-bottom:1px solid rgba(255,255,255,0.1); }
+  .back{ font-size:12px; color:#EDEDED; text-decoration:none; }
+  .back:hover{ color:var(--gold); }
+
+  .wrap{ max-width:420px; margin:0 auto; padding:36px 20px; }
+  h1{ font-family:'Oswald', sans-serif; font-size:16px; letter-spacing:0.08em; margin:0 0 22px; }
+
+  .card{
+    background:rgba(255,255,255,0.55); border:1px solid rgba(20,20,15,0.15);
+    border-radius:10px; padding:22px;
+  }
+  label{ font-size:12px; color:var(--ink-dim); display:block; margin-bottom:6px; }
+  input{
+    width:100%; background:var(--white); border:1px solid rgba(20,20,15,0.25);
+    color:var(--ink); padding:12px 14px; border-radius:6px; font-size:14px;
+    margin-bottom:16px; font-family:inherit;
+  }
+  input:focus{ outline:none; border-color:var(--ink); }
+
+  button{
+    background:var(--ink); color:var(--gold);
+    font-family:'Oswald', sans-serif; font-weight:700; letter-spacing:0.05em;
+    border:none; border-radius:6px; padding:12px 22px; font-size:14px; cursor:pointer;
+  }
+  button:hover{ opacity:0.85; }
+  button:disabled{ opacity:0.5; cursor:default; }
+
+  .saved{ font-size:12px; color:var(--ink-dim); margin-top:12px; min-height:16px; }
+
+  .room-meta{ font-size:12px; color:var(--ink-dim); margin-bottom:20px; line-height:1.8; }
+  .room-meta b{ color:var(--ink); font-weight:700; }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="logo">IPPON</div>
+    <div style="display:flex; align-items:center; gap:14px;">
+      <a class="back" id="backLink" href="#">← 管理画面へ戻る</a>
+      <div class="operator-wrap" style="position:relative;">
+        <button class="operator-btn" id="operatorBtn"></button>
+        <div class="operator-dropdown" id="operatorDropdown">
+          <button id="renameBtn">名前を変更</button>
+          <button id="logoutBtn">ログアウト</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <h1>部屋の設定</h1>
+    <div class="room-meta">
+      部屋番号：<b id="roomIdLabel"></b>　入室パスワード：<b id="roomPasswordLabel"></b>
+    </div>
+
+    <div class="card">
+      <form id="settingsForm">
+        <label for="roomName">部屋の名前</label>
+        <input id="roomName" type="text" required>
+        <button type="submit" id="saveBtn">保存する</button>
+        <div class="saved" id="savedText"></div>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+  <script src="firebase-init.js"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const roomId = params.get('room');
+    document.getElementById('backLink').href = 'ippon-control.html?room=' + roomId;
+
+    let operatorName = localStorage.getItem('ippon-operator-name') || null;
+
+    const operatorBtn = document.getElementById('operatorBtn');
+    const operatorDropdown = document.getElementById('operatorDropdown');
+    if(operatorName){ operatorBtn.textContent = operatorName; }
+    operatorBtn.addEventListener('click', () => operatorDropdown.classList.toggle('show'));
+    document.addEventListener('click', (e) => {
+      if(!e.target.closest('.operator-wrap')){ operatorDropdown.classList.remove('show'); }
+    });
+    document.getElementById('renameBtn').addEventListener('click', () => {
+      const newName = prompt('新しい名前を入力してください', operatorName);
+      if(newName && newName.trim()){
+        operatorName = newName.trim();
+        localStorage.setItem('ippon-operator-name', operatorName);
+        operatorBtn.textContent = operatorName;
+      }
+      operatorDropdown.classList.remove('show');
+    });
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      localStorage.removeItem('ippon-operator-name');
+      location.href = 'index.html';
+    });
+
+    const roomIdLabel = document.getElementById('roomIdLabel');
+    const roomPasswordLabel = document.getElementById('roomPasswordLabel');
+    const roomNameInput = document.getElementById('roomName');
+    const savedText = document.getElementById('savedText');
+    const form = document.getElementById('settingsForm');
+
+    if(roomId){
+      const roomRef = db.collection('rooms').doc(roomId);
+
+      roomRef.get().then((snap) => {
+        if(!snap.exists) return;
+        const data = snap.data();
+        roomIdLabel.textContent = roomId;
+        roomPasswordLabel.textContent = data.password;
+        roomNameInput.value = data.name;
+
+        if(!operatorName){
+          operatorName = data.hostName || '名無し';
+          localStorage.setItem('ippon-operator-name', operatorName);
+          operatorBtn.textContent = operatorName;
+        }
+      });
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const newName = roomNameInput.value.trim();
+        if(!newName) return;
+
+        const snap = await roomRef.get();
+        const oldName = snap.data().name;
+
+        await roomRef.update({ name: newName });
+
+        if(newName !== oldName){
+          await roomRef.collection('logs').add({
+            text: operatorName + 'さんが部屋名を「' + oldName + '」から「' + newName + '」に変更しました',
+            operatorName,
+            score: null,
+            at: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        }
+
+        savedText.textContent = '保存しました';
+        setTimeout(() => { savedText.textContent = ''; }, 2000);
+      });
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>IPPON オーナーホーム</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+  :root{
+    --bg:#0B0D12; --panel:#15181F; --panel-line:#262B36;
+    --gold:#FFE900; --gold-dim:#8C8300; --text:#F5F1E8; --text-dim:#8A8F9C;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; min-height:100%; }
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:'Noto Sans JP', system-ui, sans-serif;
+    padding:32px 20px;
+  }
+  .wrap{ max-width:640px; margin:0 auto; }
+
+  header{ display:flex; justify-content:space-between; align-items:center; margin-bottom:28px; }
+  h1{ font-family:'Oswald', sans-serif; font-size:20px; letter-spacing:0.08em; color:var(--gold); margin:0; }
+  .userinfo{ font-size:12px; color:var(--text-dim); }
+  .logout{
+    background:transparent; border:1px solid var(--panel-line); color:var(--text-dim);
+    font-size:12px; padding:8px 14px; border-radius:6px; cursor:pointer; font-family:inherit;
+  }
+  .logout:hover{ color:var(--text); border-color:var(--gold-dim); }
+
+  .create-box{
+    background:var(--panel); border:1px solid var(--panel-line); border-radius:10px;
+    padding:20px; margin-bottom:28px; display:flex; gap:10px;
+  }
+  .create-box input{
+    flex:1; background:#0F1117; border:1px solid var(--panel-line);
+    color:var(--text); padding:10px 14px; border-radius:6px; font-size:14px; font-family:inherit;
+  }
+  .create-box input:focus{ outline:none; border-color:var(--gold-dim); }
+  .create-box button{
+    background:var(--gold); color:#1A1204; border:none; border-radius:6px;
+    padding:0 20px; font-family:'Oswald', sans-serif; font-weight:700; font-size:14px; cursor:pointer;
+    white-space:nowrap;
+  }
+  .create-box button:hover{ background:#fff066; }
+
+  h2{ font-family:'Oswald', sans-serif; font-size:13px; letter-spacing:0.1em; color:var(--text-dim); margin:0 0 12px; }
+
+  .room-list{ display:flex; flex-direction:column; gap:12px; }
+  .room-card{
+    background:var(--panel); border:1px solid var(--panel-line); border-radius:10px;
+    padding:18px 20px;
+  }
+  .room-name{ font-family:'Oswald', sans-serif; font-size:16px; margin:0 0 6px; }
+  .room-meta{ font-size:12px; color:var(--text-dim); display:flex; gap:16px; flex-wrap:wrap; margin-bottom:14px; }
+  .room-meta b{ color:var(--gold); font-weight:600; }
+  .room-links{ display:flex; gap:8px; flex-wrap:wrap; }
+  .room-links a{
+    font-size:12px; color:var(--text); text-decoration:none;
+    border:1px solid var(--panel-line); padding:8px 12px; border-radius:6px;
+  }
+  .room-links a:hover{ border-color:var(--gold-dim); color:var(--gold); }
+
+  .empty{ font-size:13px; color:var(--text-dim); padding:20px 0; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>オーナーホーム</h1>
+      <div style="display:flex; align-items:center; gap:12px;">
+        <span class="userinfo" id="userInfo"></span>
+        <button class="logout" id="logoutBtn">ログアウト</button>
+      </div>
+    </header>
+
+    <div class="create-box">
+      <input id="newRoomName" type="text" placeholder="新しい部屋の名前（例：8月大会）">
+      <button id="createBtn">部屋を作る</button>
+    </div>
+
+    <h2>部屋一覧</h2>
+    <div class="room-list" id="roomList">
+      <div class="empty">読み込み中…</div>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+  <script src="firebase-init.js"></script>
+  <script>
+    const roomList = document.getElementById('roomList');
+    const userInfo = document.getElementById('userInfo');
+    const createBtn = document.getElementById('createBtn');
+    const newRoomName = document.getElementById('newRoomName');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    let currentUid = null;
+
+    auth.onAuthStateChanged((user) => {
+      if(!user){
+        location.href = 'ippon-login.html';
+        return;
+      }
+      currentUid = user.uid;
+      db.collection('owners').doc(user.uid).get().then((snap) => {
+        userInfo.textContent = snap.exists ? snap.data().name : '';
+      });
+      watchRooms(user.uid);
+    });
+
+    logoutBtn.addEventListener('click', () => {
+      auth.signOut().then(() => location.href = 'ippon-login.html');
+    });
+
+    function randomRoomId(){
+      return String(Math.floor(1000 + Math.random() * 9000));
+    }
+    function randomRoomPassword(){
+      return String(Math.floor(1000 + Math.random() * 9000));
+    }
+
+    createBtn.addEventListener('click', async () => {
+      const name = newRoomName.value.trim() || '無題の部屋';
+      createBtn.disabled = true;
+
+      // 部屋番号がかぶらないように、既に使われていないか確認してから作る
+      let roomId;
+      for(let i = 0; i < 5; i++){
+        const candidate = randomRoomId();
+        const existing = await db.collection('rooms').doc(candidate).get();
+        if(!existing.exists){ roomId = candidate; break; }
+      }
+      if(!roomId){ alert('部屋番号の発行に失敗しました。もう一度お試しください。'); createBtn.disabled = false; return; }
+
+      await db.collection('rooms').doc(roomId).set({
+        roomId,
+        name,
+        password: randomRoomPassword(),
+        ownerId: currentUid,
+        score: 0,
+        maxScore: 10,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+
+      newRoomName.value = '';
+      createBtn.disabled = false;
+    });
+
+    function watchRooms(uid){
+      db.collection('rooms').where('ownerId', '==', uid)
+        .onSnapshot((snap) => {
+          if(snap.empty){
+            roomList.innerHTML = '<div class="empty">まだ部屋がありません。上で新しく作ってみてください。</div>';
+            return;
+          }
+          const rooms = [];
+          snap.forEach((doc) => rooms.push(doc.data()));
+          rooms.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+
+          roomList.innerHTML = rooms.map((room) => `
+            <div class="room-card">
+              <div class="room-name">${escapeHtml(room.name)}</div>
+              <div class="room-meta">
+                <span>部屋番号：<b>${room.roomId ?? ''}</b></span>
+                <span>入室パスワード：<b>${room.password}</b></span>
+                <span>得点：${room.score} / ${room.maxScore}</span>
+              </div>
+              <div class="room-links">
+                <a href="ippon-control.html?room=${room.roomId}" target="_blank">管理画面へ</a>
+                <a href="ippon-obs.html?room=${room.roomId}" target="_blank">OBS表示を開く</a>
+              </div>
+            </div>
+          `).join('');
+        });
+    }
+
+    function escapeHtml(str){
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>

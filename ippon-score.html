@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>採点 - IPPON</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+  :root{
+    --gold:#FFE900; --ink:#14140F; --ink-dim:#5A5A44; --bar:#0A0A0C;
+    --white:#FFFFFF; --red:#C7302B;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; margin:0; }
+  body{
+    background:var(--ink); color:var(--white);
+    font-family:'Noto Sans JP', system-ui, sans-serif;
+    display:flex; flex-direction:column; min-height:100%;
+  }
+
+  .topbar{
+    background:var(--bar);
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 20px;
+  }
+  .logo{ font-family:'Oswald', sans-serif; font-weight:700; font-size:16px; letter-spacing:0.15em; color:var(--gold); }
+  .me{ font-size:12px; color:#BDBDBD; }
+
+  .status-bar{
+    text-align:center;
+    padding:14px 0;
+    font-family:'Oswald', sans-serif;
+    font-size:14px;
+    letter-spacing:0.08em;
+    background:#1C1C16;
+  }
+  .status-bar .value{ color:var(--gold); font-weight:700; margin-left:8px; }
+
+  .stage{
+    flex:1;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+    gap:18px;
+    padding:20px;
+    text-align:center;
+  }
+
+  .score-btn{
+    width:220px; height:220px;
+    border-radius:50%;
+    background:var(--gold);
+    color:var(--ink);
+    font-family:'Oswald', sans-serif;
+    font-size:36px;
+    font-weight:700;
+    letter-spacing:0.05em;
+    border:none;
+    cursor:pointer;
+    transition:transform .08s ease, background .15s ease, opacity .15s ease;
+    box-shadow:0 10px 30px rgba(0,0,0,0.4);
+  }
+  .score-btn:active{ transform:scale(0.95); }
+  .score-btn:disabled{
+    background:#3A3A32; color:#6E6E62;
+    cursor:default; box-shadow:none;
+  }
+
+  .remaining{ font-size:13px; color:#BDBDBD; }
+  .remaining b{ color:var(--gold); }
+
+  .blocked{
+    text-align:center; padding:40px 24px; color:#BDBDBD; font-size:14px; line-height:1.8;
+  }
+  .blocked a{ color:var(--gold); }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="logo">IPPON</div>
+    <div class="me" id="meLabel"></div>
+  </div>
+
+  <div id="content">
+    <div class="blocked">読み込み中…</div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+  <script src="firebase-init.js"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const roomId = params.get('room');
+    const content = document.getElementById('content');
+    const meLabel = document.getElementById('meLabel');
+    const MAX_PRESSES = 2;
+
+    if(!roomId){
+      content.innerHTML = '<div class="blocked">URLに ?room=部屋番号 がありません</div>';
+    } else {
+      const stored = localStorage.getItem('ippon-participant-' + roomId);
+      if(!stored){
+        content.innerHTML = '<div class="blocked">この部屋にまだ参加していません。<br><a href="ippon-join.html">部屋に入る画面</a>からどうぞ。</div>';
+      } else {
+        const me = JSON.parse(stored);
+        meLabel.textContent = me.name;
+
+        const roomRef = db.collection('rooms').doc(roomId);
+        const myParticipantRef = roomRef.collection('participants').doc(me.id);
+
+        let myRole = null;
+        let kicked = false;
+        let roomData = null;
+        let myParticipantData = null;
+
+        function myPressCount(){
+          if(!myParticipantData || !roomData) return 0;
+          if(myParticipantData.lastRoundScored !== roomData.scoringRound) return 0;
+          return myParticipantData.pressCount || 0;
+        }
+
+        function render(){
+          if(kicked){
+            content.innerHTML = '<div class="blocked">この部屋から退出させられました。</div>';
+            return;
+          }
+          if(myRole !== '採点者'){
+            const roleLink = myRole === '回答者'
+              ? '<br><a href="ippon-answer.html?room=' + roomId + '">回答画面はこちら</a>'
+              : '';
+            content.innerHTML = '<div class="blocked">あなたの役割は「採点者」ではありません（現在：' + (myRole || '不明') + '）。<br>主催者に確認してください。' + roleLink + '</div>';
+            return;
+          }
+          if(!roomData) return;
+
+          const pressCount = myPressCount();
+          const remaining = MAX_PRESSES - pressCount;
+          const scoringNow = roomData.status === '採点中';
+          const roomFull = roomData.score >= roomData.maxScore;
+          const canPress = scoringNow && remaining > 0 && !roomFull;
+
+          content.innerHTML = `
+            <div class="status-bar">ステータス<span class="value">${escapeHtml(roomData.status || '準備中')}</span></div>
+            <div class="stage">
+              <button class="score-btn" id="scoreBtn" ${canPress ? '' : 'disabled'}>＋1</button>
+              <div class="remaining">あなたの持ち点：<b>${Math.max(0, remaining)}</b> / ${MAX_PRESSES}</div>
+              ${!scoringNow ? '<div class="remaining">今は採点を受け付けていません</div>' : ''}
+              ${roomFull ? '<div class="remaining">すでに満点です</div>' : ''}
+            </div>
+          `;
+
+          const btn = document.getElementById('scoreBtn');
+          if(btn && canPress){
+            btn.addEventListener('click', pressScore);
+          }
+        }
+
+        async function pressScore(){
+          await db.runTransaction(async (tx) => {
+            const roomSnap = await tx.get(roomRef);
+            const pSnap = await tx.get(myParticipantRef);
+            const room = roomSnap.data();
+            const p = pSnap.data();
+
+            if(room.status !== '採点中') return;
+            if(room.score >= room.maxScore) return;
+
+            const currentCount = (p.lastRoundScored === room.scoringRound) ? (p.pressCount || 0) : 0;
+            if(currentCount >= MAX_PRESSES) return;
+
+            tx.update(roomRef, { score: room.score + 1 });
+            tx.update(myParticipantRef, {
+              lastRoundScored: room.scoringRound,
+              pressCount: currentCount + 1
+            });
+          });
+
+          roomRef.collection('logs').add({
+            text: me.name + 'さんが採点で＋1しました',
+            operatorName: me.name,
+            score: null,
+            at: firebase.firestore.FieldValue.serverTimestamp()
+          });
+        }
+
+        myParticipantRef.onSnapshot((snap) => {
+          if(!snap.exists){ kicked = true; render(); return; }
+          myParticipantData = snap.data();
+          myRole = myParticipantData.role || '回答者';
+          render();
+        });
+
+        roomRef.onSnapshot((snap) => {
+          if(!snap.exists) return;
+          roomData = snap.data();
+          if(roomData.scoringRound === undefined) roomData.scoringRound = 0;
+          render();
+        });
+      }
+    }
+
+    function escapeHtml(str){
+      const div = document.createElement('div');
+      div.textContent = str ?? '';
+      return div.innerHTML;
+    }
+  </script>
+</body>
+</html>

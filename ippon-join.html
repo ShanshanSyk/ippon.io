@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>部屋に入る - IPPON</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+  :root{
+    --bg:#0B0D12; --panel:#15181F; --panel-line:#262B36;
+    --gold:#FFE900; --gold-dim:#8C8300; --text:#F5F1E8; --text-dim:#8A8F9C; --red:#C74B3E;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; margin:0; }
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:'Noto Sans JP', system-ui, sans-serif;
+    display:flex; align-items:center; justify-content:center;
+    padding:20px;
+  }
+  .card{
+    width:100%; max-width:400px;
+    background:var(--panel); border:1px solid var(--panel-line);
+    border-radius:12px; padding:32px 28px;
+  }
+  .back{ font-size:12px; color:var(--text-dim); text-decoration:none; display:inline-block; margin-bottom:16px; }
+  .back:hover{ color:var(--gold); }
+  h1{
+    font-family:'Oswald', sans-serif; font-size:20px; letter-spacing:0.06em;
+    margin:0 0 24px; color:var(--gold);
+  }
+  label{ font-size:12px; color:var(--text-dim); display:block; margin-bottom:6px; }
+  input{
+    width:100%; background:#0F1117; border:1px solid var(--panel-line);
+    color:var(--text); padding:12px 14px; border-radius:6px; font-size:14px;
+    margin-bottom:18px; font-family:inherit;
+  }
+  input:focus{ outline:none; border-color:var(--gold-dim); }
+  button{
+    width:100%; background:var(--gold); color:#1A1204;
+    font-family:'Oswald', sans-serif; font-weight:700; letter-spacing:0.05em;
+    border:none; border-radius:6px; padding:14px 0; font-size:15px; cursor:pointer;
+  }
+  button:hover{ background:#fff066; }
+  button:disabled{ opacity:0.5; cursor:default; }
+  .error{ color:var(--red); font-size:12px; margin-top:12px; min-height:16px; }
+
+  .result{ display:none; text-align:center; }
+  .result.show{ display:block; }
+  .result .room-name{ font-family:'Oswald', sans-serif; font-size:22px; color:var(--gold); margin-bottom:6px; }
+  .result .note{ font-size:12px; color:var(--text-dim); line-height:1.7; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <a class="back" href="index.html">← TOPへ戻る</a>
+
+    <div id="formSection">
+      <h1>部屋に入る</h1>
+      <form id="joinForm">
+        <label for="roomId">部屋番号</label>
+        <input id="roomId" type="text" inputmode="numeric" placeholder="例：1234" required>
+
+        <label for="roomPassword">入室パスワード</label>
+        <input id="roomPassword" type="text" required>
+
+        <label for="yourName">あなたの名前</label>
+        <input id="yourName" type="text" placeholder="例：鈴木花子" required>
+
+        <button type="submit" id="submitBtn">入室する</button>
+        <div class="error" id="errorText"></div>
+      </form>
+    </div>
+
+    <div class="result" id="resultSection">
+      <h1>入室しました</h1>
+      <div class="room-name" id="resultRoomName"></div>
+      <div class="note">
+        まもなく回答画面に移動します…
+      </div>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+  <script src="firebase-init.js"></script>
+  <script>
+    const form = document.getElementById('joinForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const errorText = document.getElementById('errorText');
+    const formSection = document.getElementById('formSection');
+    const resultSection = document.getElementById('resultSection');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorText.textContent = '';
+      submitBtn.disabled = true;
+      submitBtn.textContent = '確認中…';
+
+      const roomId = document.getElementById('roomId').value.trim();
+      const roomPassword = document.getElementById('roomPassword').value.trim();
+      const name = document.getElementById('yourName').value.trim();
+
+      try{
+        const roomSnap = await db.collection('rooms').doc(roomId).get();
+        if(!roomSnap.exists){
+          throw new Error('その部屋番号は見つかりません');
+        }
+        const room = roomSnap.data();
+        if(room.password !== roomPassword){
+          throw new Error('パスワードが違います');
+        }
+
+        const participantRef = await db.collection('rooms').doc(roomId).collection('participants').add({
+          name,
+          role: '回答者',
+          isOwner: false,
+          score: 0,
+          joinedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        // このブラウザが「自分がどの参加者か」を覚えておく（アカウントの代わり）
+        localStorage.setItem('ippon-participant-' + roomId, JSON.stringify({
+          id: participantRef.id,
+          name
+        }));
+
+        await db.collection('rooms').doc(roomId).collection('logs').add({
+          text: name + 'さんが入室しました',
+          operatorName: name,
+          score: null,
+          at: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        location.href = 'ippon-answer.html?room=' + roomId;
+        return;
+      }catch(err){
+        console.error(err);
+        errorText.textContent = err.message;
+        submitBtn.disabled = false;
+        submitBtn.textContent = '入室する';
+      }
+    });
+  </script>
+</body>
+</html>

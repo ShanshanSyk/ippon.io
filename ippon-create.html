@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>部屋を作る - IPPON</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+  :root{
+    --bg:#0B0D12; --panel:#15181F; --panel-line:#262B36;
+    --gold:#FFE900; --gold-dim:#8C8300; --text:#F5F1E8; --text-dim:#8A8F9C; --red:#C74B3E;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; margin:0; }
+  body{
+    background:var(--bg); color:var(--text);
+    font-family:'Noto Sans JP', system-ui, sans-serif;
+    display:flex; align-items:center; justify-content:center;
+    padding:20px;
+  }
+  .card{
+    width:100%; max-width:400px;
+    background:var(--panel); border:1px solid var(--panel-line);
+    border-radius:12px; padding:32px 28px;
+  }
+  .back{ font-size:12px; color:var(--text-dim); text-decoration:none; display:inline-block; margin-bottom:16px; }
+  .back:hover{ color:var(--gold); }
+  h1{
+    font-family:'Oswald', sans-serif; font-size:20px; letter-spacing:0.06em;
+    margin:0 0 24px; color:var(--gold);
+  }
+  label{ font-size:12px; color:var(--text-dim); display:block; margin-bottom:6px; }
+  input{
+    width:100%; background:#0F1117; border:1px solid var(--panel-line);
+    color:var(--text); padding:12px 14px; border-radius:6px; font-size:14px;
+    margin-bottom:18px; font-family:inherit;
+  }
+  input:focus{ outline:none; border-color:var(--gold-dim); }
+  button{
+    width:100%; background:var(--gold); color:#1A1204;
+    font-family:'Oswald', sans-serif; font-weight:700; letter-spacing:0.05em;
+    border:none; border-radius:6px; padding:14px 0; font-size:15px; cursor:pointer;
+  }
+  button:hover{ background:#fff066; }
+  button:disabled{ opacity:0.5; cursor:default; }
+  .error{ color:var(--red); font-size:12px; margin-top:12px; min-height:16px; }
+
+  .result{ display:none; }
+  .result.show{ display:block; }
+  .result-row{
+    display:flex; justify-content:space-between; align-items:center;
+    background:#0F1117; border:1px solid var(--panel-line); border-radius:8px;
+    padding:14px 16px; margin-bottom:10px;
+  }
+  .result-row .label{ font-size:12px; color:var(--text-dim); }
+  .result-row .value{ font-family:'Oswald', sans-serif; font-size:22px; color:var(--gold); letter-spacing:0.05em; }
+  .result-links{ display:flex; gap:10px; margin-top:18px; }
+  .result-links a{
+    flex:1; text-align:center;
+    background:transparent; border:1px solid var(--panel-line); color:var(--text);
+    text-decoration:none; padding:12px 0; border-radius:6px; font-size:13px;
+  }
+  .result-links a:hover{ border-color:var(--gold-dim); color:var(--gold); }
+</style>
+</head>
+<body>
+  <div class="card">
+    <a class="back" href="index.html">← TOPへ戻る</a>
+
+    <div id="formSection">
+      <h1>部屋を作る</h1>
+      <form id="createForm">
+        <label for="hostName">あなたの名前</label>
+        <input id="hostName" type="text" placeholder="例：山田太郎" required>
+
+        <label for="roomName">部屋名（省略可）</label>
+        <input id="roomName" type="text" placeholder="例：8月大会">
+
+        <button type="submit" id="submitBtn">部屋を作る</button>
+        <div class="error" id="errorText"></div>
+      </form>
+    </div>
+
+    <div class="result" id="resultSection">
+      <h1>部屋ができました</h1>
+      <div class="result-row"><span class="label">部屋番号</span><span class="value" id="resultRoomId"></span></div>
+      <div class="result-row"><span class="label">入室パスワード</span><span class="value" id="resultPassword"></span></div>
+      <div class="result-links">
+        <a id="controlLink" href="#" target="_blank">管理画面へ</a>
+        <a id="obsLink" href="#" target="_blank">OBS表示を開く</a>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+  <script src="firebase-init.js"></script>
+  <script>
+    const form = document.getElementById('createForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const errorText = document.getElementById('errorText');
+    const formSection = document.getElementById('formSection');
+    const resultSection = document.getElementById('resultSection');
+
+    function randomRoomId(){ return String(Math.floor(1000 + Math.random() * 9000)); }
+    function randomRoomPassword(){ return String(Math.floor(1000 + Math.random() * 9000)); }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorText.textContent = '';
+      submitBtn.disabled = true;
+      submitBtn.textContent = '作成中…';
+
+      const hostName = document.getElementById('hostName').value.trim();
+      const roomName = document.getElementById('roomName').value.trim() || '無題の部屋';
+
+      try{
+        let roomId;
+        for(let i = 0; i < 5; i++){
+          const candidate = randomRoomId();
+          const existing = await db.collection('rooms').doc(candidate).get();
+          if(!existing.exists){ roomId = candidate; break; }
+        }
+        if(!roomId){ throw new Error('部屋番号の発行に失敗しました'); }
+
+        const password = randomRoomPassword();
+
+        await db.collection('rooms').doc(roomId).set({
+          roomId,
+          name: roomName,
+          hostName,
+          password,
+          score: 0,
+          maxScore: 10,
+          status: '準備中',
+          createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        await db.collection('rooms').doc(roomId).collection('logs').add({
+          text: hostName + 'さんが部屋を作成しました',
+          operatorName: hostName,
+          score: 0,
+          at: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        // 部屋を作った人は自動的に「管理者」として参加者一覧に入る
+        await db.collection('rooms').doc(roomId).collection('participants').add({
+          name: hostName,
+          role: '管理者',
+          isOwner: true,
+          joinedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        document.getElementById('resultRoomId').textContent = roomId;
+        document.getElementById('resultPassword').textContent = password;
+        document.getElementById('controlLink').href = 'ippon-control.html?room=' + roomId;
+        document.getElementById('obsLink').href = 'ippon-obs.html?room=' + roomId;
+
+        formSection.style.display = 'none';
+        resultSection.classList.add('show');
+      }catch(err){
+        console.error(err);
+        errorText.textContent = '作成できませんでした：' + err.message;
+        submitBtn.disabled = false;
+        submitBtn.textContent = '部屋を作る';
+      }
+    });
+  </script>
+</body>
+</html>

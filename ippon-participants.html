@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>参加者一覧 - IPPON</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Noto+Sans+JP:wght@400;500;700&display=swap');
+
+  :root{
+    --gold:#FFE900; --ink:#14140F; --ink-dim:#5A5A44; --bar:#0A0A0C;
+    --white:#FFFFFF; --red:#C7302B;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; margin:0; }
+  body{ background:var(--gold); color:var(--ink); font-family:'Noto Sans JP', system-ui, sans-serif; }
+
+  .topbar{
+    background:var(--bar); color:#fff;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 24px;
+  }
+  .topbar .logo{ font-family:'Oswald', sans-serif; font-weight:700; font-size:18px; letter-spacing:0.15em; color:var(--gold); }
+  .topbar .room-info{ font-size:13px; color:#EDEDED; }
+  .topbar .room-info b{ color:var(--gold); font-weight:600; }
+  .operator-btn{
+    background:transparent; border:1px solid rgba(255,255,255,0.25); color:var(--gold);
+    font-size:12px; padding:5px 10px; border-radius:14px; cursor:pointer;
+    font-family:'Noto Sans JP', sans-serif;
+  }
+  .operator-btn:hover{ border-color:var(--gold); }
+  .operator-dropdown{
+    display:none;
+    position:absolute; right:0; top:calc(100% + 6px);
+    background:#1C1C16; border:1px solid rgba(255,255,255,0.15);
+    border-radius:8px; overflow:hidden; z-index:60;
+    min-width:140px;
+  }
+  .operator-dropdown.show{ display:block; }
+  .operator-dropdown button{
+    display:block; width:100%; text-align:left;
+    background:transparent; border:none; color:#EDEDED;
+    font-size:13px; padding:11px 14px; cursor:pointer;
+    font-family:'Noto Sans JP', sans-serif;
+  }
+  .operator-dropdown button:hover{ background:rgba(255,255,255,0.08); }
+  .operator-dropdown button:first-child{ border-bottom:1px solid rgba(255,255,255,0.1); }
+  .back{ font-size:12px; color:#EDEDED; text-decoration:none; }
+  .back:hover{ color:var(--gold); }
+
+  .wrap{ max-width:760px; margin:0 auto; padding:28px 20px; }
+  h1{ font-family:'Oswald', sans-serif; font-size:16px; letter-spacing:0.08em; margin:0 0 18px; }
+
+  table{
+    width:100%; border-collapse:collapse;
+    background:rgba(255,255,255,0.55); border-radius:10px; overflow:hidden;
+  }
+  th, td{
+    padding:12px 10px; text-align:center; font-size:13px;
+    border-bottom:1px solid rgba(20,20,15,0.12);
+  }
+  th{ font-family:'Oswald', sans-serif; font-weight:600; letter-spacing:0.03em; color:var(--ink-dim); font-size:12px; }
+  td.name-cell{ text-align:left; font-weight:600; }
+  tr:last-child td{ border-bottom:none; }
+
+  input[type="radio"]{ width:18px; height:18px; cursor:pointer; accent-color:var(--ink); }
+
+  .kick-btn{
+    background:transparent; border:1px solid var(--red); color:var(--red);
+    font-size:11px; padding:6px 10px; border-radius:6px; cursor:pointer;
+    font-family:'Noto Sans JP', sans-serif;
+  }
+  .kick-btn:hover{ background:var(--red); color:#fff; }
+  .owner-badge{
+    font-size:10px; color:var(--ink-dim); display:block; margin-top:2px;
+  }
+
+  .empty{ padding:24px; text-align:center; color:var(--ink-dim); font-size:13px; }
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="logo">IPPON</div>
+    <div style="display:flex; align-items:center; gap:14px;">
+      <a class="back" href="#" id="backLink">← 管理画面へ戻る</a>
+      <div class="operator-wrap" style="position:relative;">
+        <button class="operator-btn" id="operatorBtn"></button>
+        <div class="operator-dropdown" id="operatorDropdown">
+          <button id="renameBtn">名前を変更</button>
+          <button id="logoutBtn">ログアウト</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <h1 id="roomInfo">参加者一覧</h1>
+    <table>
+      <thead>
+        <tr>
+          <th style="text-align:left">名前</th>
+          <th>回答者</th>
+          <th>採点者</th>
+          <th>管理者</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="participantBody">
+        <tr><td colspan="5" class="empty">読み込み中…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+  <script src="firebase-init.js"></script>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const roomId = params.get('room');
+    document.getElementById('backLink').href = 'ippon-control.html?room=' + roomId;
+
+    let operatorName = localStorage.getItem('ippon-operator-name') || null;
+
+    const roomInfo = document.getElementById('roomInfo');
+    const operatorBtn = document.getElementById('operatorBtn');
+    const operatorDropdown = document.getElementById('operatorDropdown');
+    if(operatorName){ operatorBtn.textContent = operatorName; }
+
+    operatorBtn.addEventListener('click', () => operatorDropdown.classList.toggle('show'));
+    document.addEventListener('click', (e) => {
+      if(!e.target.closest('.operator-wrap')){ operatorDropdown.classList.remove('show'); }
+    });
+    document.getElementById('renameBtn').addEventListener('click', () => {
+      const newName = prompt('新しい名前を入力してください', operatorName);
+      if(newName && newName.trim()){
+        operatorName = newName.trim();
+        localStorage.setItem('ippon-operator-name', operatorName);
+        operatorBtn.textContent = operatorName;
+      }
+      operatorDropdown.classList.remove('show');
+    });
+    document.getElementById('logoutBtn').addEventListener('click', () => {
+      localStorage.removeItem('ippon-operator-name');
+      location.href = 'index.html';
+    });
+    const participantBody = document.getElementById('participantBody');
+    const ROLES = ['回答者', '採点者', '管理者'];
+
+    if(!roomId){
+      roomInfo.textContent = 'URLに ?room=部屋番号 がありません';
+    } else {
+      const roomRef = db.collection('rooms').doc(roomId);
+      const participantsRef = roomRef.collection('participants');
+
+      function addLog(text){
+        roomRef.collection('logs').add({
+          text,
+          operatorName,
+          score: null,
+          at: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
+
+      roomRef.get().then((snap) => {
+        if(snap.exists){
+          const data = snap.data();
+          roomInfo.innerHTML = '参加者一覧　<span style="color:var(--ink-dim); font-size:12px;">' + escapeHtml(data.name) + '</span>';
+          if(!operatorName){
+            operatorName = data.hostName || '名無し';
+            localStorage.setItem('ippon-operator-name', operatorName);
+            operatorBtn.textContent = operatorName;
+          }
+        }
+      });
+
+      participantsRef.orderBy('joinedAt', 'asc').onSnapshot((snap) => {
+        if(snap.empty){
+          participantBody.innerHTML = '<tr><td colspan="5" class="empty">まだ参加者がいません</td></tr>';
+          return;
+        }
+
+        participantBody.innerHTML = snap.docs.map((doc) => {
+          const p = doc.data();
+          const id = doc.id;
+          const role = p.role || '回答者';
+
+          const radios = ROLES.map((r) => `
+            <td>
+              <input type="radio" name="role-${id}" value="${r}" ${role === r ? 'checked' : ''} ${p.isOwner ? 'disabled' : ''}
+                     onchange="changeRole('${id}', '${r}', '${escapeJs(p.name)}')">
+            </td>
+          `).join('');
+
+          const kickCell = p.isOwner
+            ? `<td><span class="owner-badge">オーナー</span></td>`
+            : `<td><button class="kick-btn" onclick="kickParticipant('${id}', '${escapeJs(p.name)}')">KICK</button></td>`;
+
+          return `<tr><td class="name-cell">${escapeHtml(p.name)}</td>${radios}${kickCell}</tr>`;
+        }).join('');
+      });
+
+      window.changeRole = (participantId, role, name) => {
+        participantsRef.doc(participantId).update({ role });
+        addLog(operatorName + 'さんが' + name + 'さんの役割を「' + role + '」に変更しました');
+      };
+
+      window.kickParticipant = (participantId, name) => {
+        if(!confirm(name + 'さんを部屋から退出させますか？')) return;
+        participantsRef.doc(participantId).delete();
+        addLog(operatorName + 'さんが' + name + 'さんを退出させました');
+      };
+    }
+
+    function escapeHtml(str){
+      const div = document.createElement('div');
+      div.textContent = str ?? '';
+      return div.innerHTML;
+    }
+    function escapeJs(str){
+      return String(str ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    }
+  </script>
+</body>
+</html>
