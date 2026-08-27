@@ -19,35 +19,49 @@
 
   .topbar{
     background:var(--bar);
-    display:flex; align-items:center; justify-content:space-between;
+    display:flex; align-items:center; gap:14px;
     padding:14px 20px;
   }
+  .menu-btn{
+    background:transparent; border:none; color:#fff; font-size:20px;
+    cursor:pointer; padding:2px 6px;
+  }
   .logo{ font-family:'Oswald', sans-serif; font-weight:700; font-size:16px; letter-spacing:0.15em; color:var(--gold); }
-  .room-info{ font-size:12px; color:#BDBDBD; }
-  .topbar-right{ display:flex; align-items:center; gap:12px; }
-  .operator-wrap{ position:relative; }
-  .operator-btn{
-    background:transparent; border:1px solid rgba(255,255,255,0.25); color:var(--gold);
-    font-size:12px; padding:5px 10px; border-radius:14px; cursor:pointer;
-    font-family:'Noto Sans JP', sans-serif;
+  .room-info{ font-size:12px; color:#BDBDBD; margin-left:auto; }
+
+  .layout{ display:flex; height:calc(100vh - 49px); }
+  .sidebar{
+    width:180px; flex-shrink:0; background:var(--bar); padding:12px 0;
+    transition:margin-left .18s ease;
   }
-  .operator-btn:hover{ border-color:var(--gold); }
-  .operator-dropdown{
-    display:none;
-    position:absolute; right:0; top:calc(100% + 6px);
-    background:#1C1C16; border:1px solid rgba(255,255,255,0.15);
-    border-radius:8px; overflow:hidden; z-index:60;
-    min-width:140px;
+  .sidebar.collapsed{ margin-left:-180px; }
+  .menu-item-full{
+    display:block; padding:14px 22px; font-size:14px; font-weight:600;
+    color:#fff; text-decoration:none; border-left:3px solid transparent;
+    cursor:pointer;
   }
-  .operator-dropdown.show{ display:block; }
-  .operator-dropdown button{
-    display:block; width:100%; text-align:left;
-    background:transparent; border:none; color:#EDEDED;
-    font-size:13px; padding:11px 14px; cursor:pointer;
-    font-family:'Noto Sans JP', sans-serif;
+  .menu-item-full.active{ color:var(--gold); border-left-color:var(--gold); background:rgba(255,233,0,0.06); }
+  .main-col{ flex:1; display:flex; flex-direction:column; min-width:0; }
+
+  /* ---- 名前変更モーダル ---- */
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6);
+    z-index:200; align-items:center; justify-content:center;
   }
-  .operator-dropdown button:hover{ background:rgba(255,255,255,0.08); }
-  .operator-dropdown button:first-child{ border-bottom:1px solid rgba(255,255,255,0.1); }
+  .modal-overlay.show{ display:flex; }
+  .modal-card{ background:#fff; border-radius:12px; padding:24px; width:90%; max-width:340px; }
+  .modal-title{ font-family:'Oswald', sans-serif; font-weight:700; font-size:16px; margin:0 0 14px; color:var(--ink); }
+  .modal-card input{
+    width:100%; padding:10px 12px; border:1px solid #CCC; border-radius:6px;
+    font-size:14px; margin-bottom:6px; font-family:inherit; box-sizing:border-box;
+  }
+  .modal-counter{ font-size:11px; color:#888; margin-bottom:18px; }
+  .modal-counter.over{ color:var(--red); font-weight:600; }
+  .modal-actions{ display:flex; gap:8px; justify-content:flex-end; }
+  .modal-actions button{ padding:9px 18px; border-radius:6px; font-size:13px; cursor:pointer; font-family:'Noto Sans JP', sans-serif; }
+  .modal-cancel{ background:transparent; border:1px solid #CCC; color:#333; }
+  .modal-save{ background:var(--ink); color:var(--gold); border:none; font-weight:600; }
+  .modal-save:disabled{ opacity:0.4; cursor:default; }
 
   .status-bar{
     text-align:center;
@@ -101,21 +115,36 @@
 </head>
 <body>
   <div class="topbar">
+    <button class="menu-btn" id="menuBtn" aria-label="メニュー">☰</button>
     <div class="logo">IPPON</div>
     <div class="room-info" id="roomInfo"></div>
-    <div class="topbar-right">
-      <div class="operator-wrap">
-        <button class="operator-btn" id="meBtn"></button>
-        <div class="operator-dropdown" id="meDropdown">
-          <button id="renameBtn">名前を変更</button>
-          <button id="logoutBtn">ログアウト</button>
-        </div>
+  </div>
+
+  <div class="layout">
+    <div class="sidebar" id="sidebar">
+      <a class="menu-item-full active" id="answerLink">回答</a>
+      <a class="menu-item-full" id="scoreLink">採点</a>
+      <a class="menu-item-full" id="sidebarRenameBtn">名前を変更</a>
+      <a class="menu-item-full" id="sidebarLogoutBtn">ログアウト</a>
+    </div>
+
+    <div class="main-col">
+      <div id="content">
+        <div class="blocked">読み込み中…</div>
       </div>
     </div>
   </div>
 
-  <div id="content">
-    <div class="blocked">読み込み中…</div>
+  <div class="modal-overlay" id="renameModalOverlay">
+    <div class="modal-card">
+      <div class="modal-title">名前を変更</div>
+      <input type="text" id="renameModalInput">
+      <div class="modal-counter" id="renameModalCounter"></div>
+      <div class="modal-actions">
+        <button class="modal-cancel" id="renameModalCancel">キャンセル</button>
+        <button class="modal-save" id="renameModalSave">保存</button>
+      </div>
+    </div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
@@ -126,8 +155,12 @@
     const roomId = params.get('room');
     const content = document.getElementById('content');
     const roomInfo = document.getElementById('roomInfo');
-    const meBtn = document.getElementById('meBtn');
-    const meDropdown = document.getElementById('meDropdown');
+
+    document.getElementById('answerLink').href = 'ippon-answer.html?room=' + roomId;
+    document.getElementById('scoreLink').href = 'ippon-score.html?room=' + roomId;
+    document.getElementById('menuBtn').addEventListener('click', () => {
+      document.getElementById('sidebar').classList.toggle('collapsed');
+    });
 
     if(!roomId){
       content.innerHTML = '<div class="blocked">URLに ?room=部屋番号 がありません</div>';
@@ -137,7 +170,6 @@
         content.innerHTML = '<div class="blocked">この部屋にまだ参加していません。<br><a href="ippon-join.html" style="color:#FFE900;">部屋に入る画面</a>からどうぞ。</div>';
       } else {
         let me = JSON.parse(stored);
-        meBtn.textContent = me.name;
 
         const roomRef = db.collection('rooms').doc(roomId);
         const participantsRef = roomRef.collection('participants');
@@ -147,21 +179,36 @@
           if(snap.exists){ roomInfo.textContent = snap.data().name; }
         });
 
-        meBtn.addEventListener('click', () => meDropdown.classList.toggle('show'));
-        document.addEventListener('click', (e) => {
-          if(!e.target.closest('.operator-wrap')){ meDropdown.classList.remove('show'); }
+        // ---- 名前変更モーダル ----
+        const renameModalOverlay = document.getElementById('renameModalOverlay');
+        const renameModalInput = document.getElementById('renameModalInput');
+        const renameModalCounter = document.getElementById('renameModalCounter');
+        const renameModalSave = document.getElementById('renameModalSave');
+
+        function updateRenameCounter(){
+          const bytes = nameByteLength(renameModalInput.value.trim());
+          renameModalCounter.textContent = bytes + ' / ' + NAME_MAX_BYTES + ' バイト';
+          renameModalCounter.classList.toggle('over', bytes > NAME_MAX_BYTES);
+          renameModalSave.disabled = bytes > NAME_MAX_BYTES || renameModalInput.value.trim() === '';
+        }
+        renameModalInput.addEventListener('input', updateRenameCounter);
+
+        document.getElementById('sidebarRenameBtn').addEventListener('click', () => {
+          renameModalInput.value = me.name;
+          updateRenameCounter();
+          renameModalOverlay.classList.add('show');
+          renameModalInput.focus();
         });
+        document.getElementById('renameModalCancel').addEventListener('click', () => {
+          renameModalOverlay.classList.remove('show');
+        });
+        renameModalOverlay.addEventListener('click', (e) => {
+          if(e.target === renameModalOverlay){ renameModalOverlay.classList.remove('show'); }
+        });
+        renameModalSave.addEventListener('click', async () => {
+          const trimmed = renameModalInput.value.trim();
+          if(!trimmed || nameByteLength(trimmed) > NAME_MAX_BYTES || trimmed === me.name) return;
 
-        document.getElementById('renameBtn').addEventListener('click', async () => {
-          const newName = prompt('新しい名前を入力してください', me.name);
-          meDropdown.classList.remove('show');
-          if(!newName || !newName.trim() || newName.trim() === me.name) return;
-          const trimmed = newName.trim();
-
-          if(nameByteLength(trimmed) > NAME_MAX_BYTES){
-            alert('名前が長すぎます（全角10文字・半角20文字くらいまで）');
-            return;
-          }
           const dup = await participantsRef.where('name', '==', trimmed).get();
           const takenByOther = dup.docs.some((d) => d.id !== me.id);
           if(takenByOther){
@@ -172,10 +219,10 @@
           await myParticipantRef.update({ name: trimmed });
           me = { id: me.id, name: trimmed };
           localStorage.setItem('ippon-participant-' + roomId, JSON.stringify(me));
-          meBtn.textContent = trimmed;
+          renameModalOverlay.classList.remove('show');
         });
 
-        document.getElementById('logoutBtn').addEventListener('click', () => {
+        document.getElementById('sidebarLogoutBtn').addEventListener('click', () => {
           localStorage.removeItem('ippon-participant-' + roomId);
           location.href = 'ippon-join.html';
         });
@@ -191,10 +238,7 @@
             return;
           }
           if(myRole !== '回答者'){
-            const roleLink = myRole === '採点者'
-              ? '<br><a href="ippon-score.html?room=' + roomId + '" style="color:#FFE900;">採点画面はこちら</a>'
-              : '';
-            content.innerHTML = '<div class="blocked">あなたの役割は「回答者」ではありません（現在：' + (myRole || '不明') + '）。<br>主催者に確認してください。' + roleLink + '</div>';
+            content.innerHTML = '<div class="blocked">あなたの役割は「回答者」ではありません（現在：' + (myRole || '不明') + '）。<br>主催者に確認してください。</div>';
             return;
           }
 

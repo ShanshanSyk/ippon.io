@@ -16,36 +16,17 @@
 
   .topbar{
     background:var(--bar); color:#fff;
-    display:flex; align-items:center; justify-content:space-between;
+    display:flex; align-items:center; gap:14px;
     padding:14px 24px;
   }
-  .topbar .logo{ font-family:'Oswald', sans-serif; font-weight:700; font-size:18px; letter-spacing:0.15em; color:var(--gold); }
-  .topbar .room-info{ font-size:13px; color:#EDEDED; }
-  .topbar .room-info b{ color:var(--gold); font-weight:600; }
-  .operator-btn{
-    background:transparent; border:1px solid rgba(255,255,255,0.25); color:var(--gold);
-    font-size:12px; padding:5px 10px; border-radius:14px; cursor:pointer;
-    font-family:'Noto Sans JP', sans-serif;
+  .logo{ font-family:'Oswald', sans-serif; font-weight:700; font-size:18px; letter-spacing:0.15em; color:var(--gold); }
+  .topbar-right{ display:flex; align-items:center; gap:12px; margin-left:auto; }
+  .room-info{ font-size:13px; color:#EDEDED; }
+  .room-info b{ color:var(--gold); font-weight:600; }
+  .operator-name-display{
+    font-size:12px; color:var(--gold); border:1px solid rgba(255,233,0,0.3);
+    padding:5px 10px; border-radius:14px;
   }
-  .operator-btn:hover{ border-color:var(--gold); }
-  .operator-dropdown{
-    display:none;
-    position:absolute; right:0; top:calc(100% + 6px);
-    background:#1C1C16; border:1px solid rgba(255,255,255,0.15);
-    border-radius:8px; overflow:hidden; z-index:60;
-    min-width:140px;
-  }
-  .operator-dropdown.show{ display:block; }
-  .operator-dropdown button{
-    display:block; width:100%; text-align:left;
-    background:transparent; border:none; color:#EDEDED;
-    font-size:13px; padding:11px 14px; cursor:pointer;
-    font-family:'Noto Sans JP', sans-serif;
-  }
-  .operator-dropdown button:hover{ background:rgba(255,255,255,0.08); }
-  .operator-dropdown button:first-child{ border-bottom:1px solid rgba(255,255,255,0.1); }
-  .back{ font-size:12px; color:#EDEDED; text-decoration:none; }
-  .back:hover{ color:var(--gold); }
   .menu-btn{
     background:transparent; border:none; color:#fff; font-size:20px;
     cursor:pointer; padding:2px 6px;
@@ -58,11 +39,33 @@
   .menu-item-full{
     display:block; padding:14px 22px; font-size:14px; font-weight:600;
     color:#fff; text-decoration:none; border-left:3px solid transparent;
+    cursor:pointer;
+  }
   }
   .menu-item-full.disabled{ color:#5A5A5A; pointer-events:none; }
   .menu-item-full.active{ color:var(--gold); border-left-color:var(--gold); background:rgba(255,233,0,0.06); }
   .menu-group-label-full{ font-size:10px; color:#7A7A7A; letter-spacing:0.1em; padding:16px 22px 4px; }
-  .layout{ display:flex; }
+  .layout{ display:flex; height:calc(100vh - 49px); }
+
+  /* ---- 名前変更モーダル ---- */
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6);
+    z-index:200; align-items:center; justify-content:center;
+  }
+  .modal-overlay.show{ display:flex; }
+  .modal-card{ background:#fff; border-radius:12px; padding:24px; width:90%; max-width:340px; }
+  .modal-title{ font-family:'Oswald', sans-serif; font-weight:700; font-size:16px; margin:0 0 14px; color:var(--ink); }
+  .modal-card input{
+    width:100%; padding:10px 12px; border:1px solid #CCC; border-radius:6px;
+    font-size:14px; margin-bottom:6px; font-family:inherit; box-sizing:border-box;
+  }
+  .modal-counter{ font-size:11px; color:#888; margin-bottom:18px; }
+  .modal-counter.over{ color:var(--red); font-weight:600; }
+  .modal-actions{ display:flex; gap:8px; justify-content:flex-end; }
+  .modal-actions button{ padding:9px 18px; border-radius:6px; font-size:13px; cursor:pointer; font-family:'Noto Sans JP', sans-serif; }
+  .modal-cancel{ background:transparent; border:1px solid #CCC; color:#333; }
+  .modal-save{ background:var(--ink); color:var(--gold); border:none; font-weight:600; }
+  .modal-save:disabled{ opacity:0.4; cursor:default; }
 
   .wrap{ max-width:760px; margin:0 auto; padding:28px 20px; flex:1; }
   h1{ font-family:'Oswald', sans-serif; font-size:16px; letter-spacing:0.08em; margin:0 0 18px; }
@@ -98,13 +101,9 @@
   <div class="topbar">
     <button class="menu-btn" id="menuBtn" aria-label="メニュー">☰</button>
     <div class="logo">IPPON</div>
-    <div class="room-info" id="topRoomInfo" style="flex:1; margin-left:16px; font-size:13px; color:#EDEDED;"></div>
-    <div class="operator-wrap" style="position:relative;">
-      <button class="operator-btn" id="operatorBtn"></button>
-      <div class="operator-dropdown" id="operatorDropdown">
-        <button id="renameBtn">名前を変更</button>
-        <button id="logoutBtn">ログアウト</button>
-      </div>
+    <div class="topbar-right">
+      <div class="room-info" id="topRoomInfo"></div>
+      <div class="operator-name-display" id="operatorNameDisplay"></div>
     </div>
   </div>
 
@@ -112,6 +111,8 @@
     <div class="sidebar" id="sidebar">
       <a class="menu-item-full disabled">回答</a>
       <a class="menu-item-full disabled">採点</a>
+      <a class="menu-item-full" id="sidebarRenameBtn">名前を変更</a>
+      <a class="menu-item-full" id="sidebarLogoutBtn">ログアウト</a>
       <div class="menu-group-label-full">管理者のみ表示</div>
       <a class="menu-item-full" id="controlLink">管理画面</a>
       <a class="menu-item-full active">参加者一覧</a>
@@ -152,24 +153,44 @@
     let operatorName = localStorage.getItem('ippon-operator-name') || null;
 
     const roomInfo = document.getElementById('roomInfo');
-    const operatorBtn = document.getElementById('operatorBtn');
-    const operatorDropdown = document.getElementById('operatorDropdown');
-    if(operatorName){ operatorBtn.textContent = operatorName; }
+    const operatorNameDisplay = document.getElementById('operatorNameDisplay');
+    if(operatorName){ operatorNameDisplay.textContent = operatorName; }
 
-    operatorBtn.addEventListener('click', () => operatorDropdown.classList.toggle('show'));
-    document.addEventListener('click', (e) => {
-      if(!e.target.closest('.operator-wrap')){ operatorDropdown.classList.remove('show'); }
+    const renameModalOverlay = document.getElementById('renameModalOverlay');
+    const renameModalInput = document.getElementById('renameModalInput');
+    const renameModalCounter = document.getElementById('renameModalCounter');
+    const renameModalSave = document.getElementById('renameModalSave');
+
+    function updateRenameCounter(){
+      const bytes = nameByteLength(renameModalInput.value.trim());
+      renameModalCounter.textContent = bytes + ' / ' + NAME_MAX_BYTES + ' バイト';
+      renameModalCounter.classList.toggle('over', bytes > NAME_MAX_BYTES);
+      renameModalSave.disabled = bytes > NAME_MAX_BYTES || renameModalInput.value.trim() === '';
+    }
+    renameModalInput.addEventListener('input', updateRenameCounter);
+
+    document.getElementById('sidebarRenameBtn').addEventListener('click', () => {
+      renameModalInput.value = operatorName || '';
+      updateRenameCounter();
+      renameModalOverlay.classList.add('show');
+      renameModalInput.focus();
     });
-    document.getElementById('renameBtn').addEventListener('click', () => {
-      const newName = prompt('新しい名前を入力してください', operatorName);
-      if(newName && newName.trim()){
-        operatorName = newName.trim();
-        localStorage.setItem('ippon-operator-name', operatorName);
-        operatorBtn.textContent = operatorName;
-      }
-      operatorDropdown.classList.remove('show');
+    document.getElementById('renameModalCancel').addEventListener('click', () => {
+      renameModalOverlay.classList.remove('show');
     });
-    document.getElementById('logoutBtn').addEventListener('click', () => {
+    renameModalOverlay.addEventListener('click', (e) => {
+      if(e.target === renameModalOverlay){ renameModalOverlay.classList.remove('show'); }
+    });
+    renameModalSave.addEventListener('click', () => {
+      const trimmed = renameModalInput.value.trim();
+      if(!trimmed || nameByteLength(trimmed) > NAME_MAX_BYTES) return;
+      operatorName = trimmed;
+      localStorage.setItem('ippon-operator-name', operatorName);
+      operatorNameDisplay.textContent = operatorName;
+      renameModalOverlay.classList.remove('show');
+    });
+
+    document.getElementById('sidebarLogoutBtn').addEventListener('click', () => {
       localStorage.removeItem('ippon-operator-name');
       location.href = 'index.html';
     });
@@ -199,7 +220,7 @@
           if(!operatorName){
             operatorName = data.hostName || '名無し';
             localStorage.setItem('ippon-operator-name', operatorName);
-            operatorBtn.textContent = operatorName;
+            operatorNameDisplay.textContent = operatorName;
           }
         }
       });
@@ -251,5 +272,17 @@
       return String(str ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     }
   </script>
+  <div class="modal-overlay" id="renameModalOverlay">
+    <div class="modal-card">
+      <div class="modal-title">名前を変更</div>
+      <input type="text" id="renameModalInput">
+      <div class="modal-counter" id="renameModalCounter"></div>
+      <div class="modal-actions">
+        <button class="modal-cancel" id="renameModalCancel">キャンセル</button>
+        <button class="modal-save" id="renameModalSave">保存</button>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
