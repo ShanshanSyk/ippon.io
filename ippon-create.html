@@ -86,7 +86,6 @@
       <div class="result-row"><span class="label">入室パスワード</span><span class="value" id="resultPassword"></span></div>
       <div class="result-links">
         <a id="controlLink" href="#" target="_blank">管理画面へ</a>
-        <a id="obsLink" href="#" target="_blank">OBS表示を開く</a>
       </div>
     </div>
   </div>
@@ -160,7 +159,6 @@
         document.getElementById('resultRoomId').textContent = roomId;
         document.getElementById('resultPassword').textContent = password;
         document.getElementById('controlLink').href = 'ippon-control.html?room=' + roomId;
-        document.getElementById('obsLink').href = 'ippon-obs.html?room=' + roomId;
 
         formSection.style.display = 'none';
         resultSection.classList.add('show');
