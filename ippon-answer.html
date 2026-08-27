@@ -28,6 +28,10 @@
   }
   .logo{ font-family:'Oswald', sans-serif; font-weight:700; font-size:16px; letter-spacing:0.15em; color:var(--gold); }
   .room-info{ font-size:12px; color:#BDBDBD; margin-left:auto; }
+  .me-name-display{
+    font-size:12px; color:var(--gold); border:1px solid rgba(255,233,0,0.3);
+    padding:5px 10px; border-radius:14px; margin-left:12px;
+  }
 
   .layout{ display:flex; height:calc(100vh - 49px); }
   .sidebar{
@@ -118,6 +122,7 @@
     <button class="menu-btn" id="menuBtn" aria-label="メニュー">☰</button>
     <div class="logo">IPPON</div>
     <div class="room-info" id="roomInfo"></div>
+    <div class="me-name-display" id="meNameDisplay"></div>
   </div>
 
   <div class="layout">
@@ -170,6 +175,8 @@
         content.innerHTML = '<div class="blocked">この部屋にまだ参加していません。<br><a href="ippon-join.html" style="color:#FFE900;">部屋に入る画面</a>からどうぞ。</div>';
       } else {
         let me = JSON.parse(stored);
+        const meNameDisplay = document.getElementById('meNameDisplay');
+        meNameDisplay.textContent = me.name;
 
         const roomRef = db.collection('rooms').doc(roomId);
         const participantsRef = roomRef.collection('participants');
@@ -219,6 +226,7 @@
           await myParticipantRef.update({ name: trimmed });
           me = { id: me.id, name: trimmed };
           localStorage.setItem('ippon-participant-' + roomId, JSON.stringify(me));
+          meNameDisplay.textContent = trimmed;
           renameModalOverlay.classList.remove('show');
         });
 
