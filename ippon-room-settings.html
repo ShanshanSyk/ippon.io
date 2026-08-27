@@ -43,8 +43,25 @@
   .operator-dropdown button:first-child{ border-bottom:1px solid rgba(255,255,255,0.1); }
   .back{ font-size:12px; color:#EDEDED; text-decoration:none; }
   .back:hover{ color:var(--gold); }
+  .menu-btn{
+    background:transparent; border:none; color:#fff; font-size:20px;
+    cursor:pointer; padding:2px 6px;
+  }
+  .sidebar{
+    width:180px; flex-shrink:0; background:var(--bar); padding:12px 0;
+    transition:margin-left .18s ease;
+  }
+  .sidebar.collapsed{ margin-left:-180px; }
+  .menu-item-full{
+    display:block; padding:14px 22px; font-size:14px; font-weight:600;
+    color:#fff; text-decoration:none; border-left:3px solid transparent;
+  }
+  .menu-item-full.disabled{ color:#5A5A5A; pointer-events:none; }
+  .menu-item-full.active{ color:var(--gold); border-left-color:var(--gold); background:rgba(255,233,0,0.06); }
+  .menu-group-label-full{ font-size:10px; color:#7A7A7A; letter-spacing:0.1em; padding:16px 22px 4px; }
+  .layout{ display:flex; }
 
-  .wrap{ max-width:420px; margin:0 auto; padding:36px 20px; }
+  .wrap{ max-width:420px; margin:0 auto; padding:36px 20px; flex:1; }
   h1{ font-family:'Oswald', sans-serif; font-size:16px; letter-spacing:0.08em; margin:0 0 22px; }
 
   .card{
@@ -75,20 +92,29 @@
 </head>
 <body>
   <div class="topbar">
+    <button class="menu-btn" id="menuBtn" aria-label="メニュー">☰</button>
     <div class="logo">IPPON</div>
-    <div style="display:flex; align-items:center; gap:14px;">
-      <a class="back" id="backLink" href="#">← 管理画面へ戻る</a>
-      <div class="operator-wrap" style="position:relative;">
-        <button class="operator-btn" id="operatorBtn"></button>
-        <div class="operator-dropdown" id="operatorDropdown">
-          <button id="renameBtn">名前を変更</button>
-          <button id="logoutBtn">ログアウト</button>
-        </div>
+    <div class="room-info" id="topRoomInfo" style="flex:1; margin-left:16px; font-size:13px; color:#EDEDED;"></div>
+    <div class="operator-wrap" style="position:relative;">
+      <button class="operator-btn" id="operatorBtn"></button>
+      <div class="operator-dropdown" id="operatorDropdown">
+        <button id="renameBtn">名前を変更</button>
+        <button id="logoutBtn">ログアウト</button>
       </div>
     </div>
   </div>
 
-  <div class="wrap">
+  <div class="layout">
+    <div class="sidebar" id="sidebar">
+      <a class="menu-item-full disabled">回答</a>
+      <a class="menu-item-full disabled">採点</a>
+      <div class="menu-group-label-full">管理者のみ表示</div>
+      <a class="menu-item-full" id="controlLink">管理画面</a>
+      <a class="menu-item-full" id="participantsLink">参加者一覧</a>
+      <a class="menu-item-full active">部屋の設定</a>
+    </div>
+
+    <div class="wrap">
     <h1>部屋の設定</h1>
     <div class="room-meta">
       部屋番号：<b id="roomIdLabel"></b>　入室パスワード：<b id="roomPasswordLabel"></b>
@@ -102,6 +128,7 @@
         <div class="saved" id="savedText"></div>
       </form>
     </div>
+    </div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
@@ -110,7 +137,11 @@
   <script>
     const params = new URLSearchParams(location.search);
     const roomId = params.get('room');
-    document.getElementById('backLink').href = 'ippon-control.html?room=' + roomId;
+    document.getElementById('controlLink').href = 'ippon-control.html?room=' + roomId;
+    document.getElementById('participantsLink').href = 'ippon-participants.html?room=' + roomId;
+    document.getElementById('menuBtn').addEventListener('click', () => {
+      document.getElementById('sidebar').classList.toggle('collapsed');
+    });
 
     let operatorName = localStorage.getItem('ippon-operator-name') || null;
 
@@ -150,6 +181,7 @@
         roomIdLabel.textContent = roomId;
         roomPasswordLabel.textContent = data.password;
         roomNameInput.value = data.name;
+        document.getElementById('topRoomInfo').textContent = data.name;
 
         if(!operatorName){
           operatorName = data.hostName || '名無し';

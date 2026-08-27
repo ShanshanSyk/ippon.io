@@ -15,3 +15,13 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
+// 名前の長さチェック（全角文字は2バイト、半角は1バイトとして数える。20バイト＝全角10文字程度）
+function nameByteLength(str){
+  let bytes = 0;
+  for(const ch of String(str)){
+    bytes += ch.charCodeAt(0) > 255 ? 2 : 1;
+  }
+  return bytes;
+}
+const NAME_MAX_BYTES = 20;
+

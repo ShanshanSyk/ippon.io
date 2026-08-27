@@ -109,33 +109,30 @@
   .main{ flex:1; padding:26px 28px; min-width:0; overflow-y:auto; }
 
   .status-box{
-    display:inline-flex;
-    align-items:center;
-    gap:10px;
-    background:transparent;
+    max-width:320px;
     margin-bottom:24px;
   }
-  .status-box .label{ font-size:13px; font-weight:600; }
-  .status-select{
-    display:flex;
-    border:2px solid var(--ink);
-    border-radius:8px;
-    overflow:hidden;
-    background:var(--white);
+  .status-current{
+    font-size:13px; font-weight:600; margin-bottom:10px;
   }
-  .status-select button{
+  .status-current span{ color:var(--ink); text-decoration:underline; text-decoration-color:rgba(20,20,15,0.3); }
+  .status-grid{ display:flex; flex-direction:column; gap:8px; }
+  .status-row{ display:flex; gap:8px; }
+  .status-btn{
     font-family:'Noto Sans JP', sans-serif;
     font-size:13px;
     font-weight:600;
-    padding:8px 14px;
-    border:none;
-    background:transparent;
+    padding:12px 14px;
+    border:2px solid var(--ink);
+    border-radius:8px;
+    background:var(--white);
     color:var(--ink);
     cursor:pointer;
-    border-right:1px solid #E5E5E5;
+    flex:1;
   }
-  .status-select button:last-child{ border-right:none; }
-  .status-select button.active{ background:var(--ink); color:var(--gold); }
+  .status-btn.full{ width:100%; }
+  .status-btn:hover{ background:#FAFAF0; }
+  .status-btn.active{ background:var(--ink); color:var(--gold); }
 
   .panels{ display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap; }
 
@@ -180,8 +177,9 @@
     border:1px solid rgba(20,20,15,0.15);
     border-radius:10px;
     padding:20px;
-    min-width:260px;
-    flex:1;
+    width:220px;
+    max-width:220px;
+    flex-shrink:0;
   }
   .panel-title-row{
     display:flex; align-items:center; justify-content:space-between;
@@ -201,6 +199,7 @@
     gap:10px;
   }
   .participant-row:last-child{ border-bottom:none; }
+  .participant-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; min-width:0; }
   .participant-score-wrap{ display:flex; align-items:center; gap:8px; }
   .participant-score{ font-family:'Oswald', sans-serif; font-weight:700; min-width:44px; text-align:right; }
   .pm-btn{
@@ -221,11 +220,21 @@
     display:flex;
     flex-direction:column;
     min-height:0;
+    transition:width .15s ease, padding .15s ease;
   }
+  .log-panel.collapsed{
+    width:36px;
+    padding:20px 8px;
+  }
+  .log-panel.collapsed .log-list-scroll,
+  .log-panel.collapsed .log-title-text{ display:none; }
   .log-title{
     font-family:'Oswald', sans-serif; font-weight:700; font-size:14px;
     letter-spacing:0.08em; margin:0 0 14px; flex-shrink:0;
+    display:flex; align-items:center; gap:6px; cursor:pointer;
   }
+  .log-toggle-icon{ font-size:11px; transition:transform .15s ease; }
+  .log-panel.collapsed .log-toggle-icon{ transform:rotate(-90deg); }
   .log-list-scroll{
     overflow-y:auto;
     flex:1;
@@ -279,12 +288,14 @@
 
     <div class="main">
       <div class="status-box">
-        <span class="label">ステータス</span>
-        <div class="status-select" id="statusSelect">
-          <button data-status="準備中">準備中</button>
-          <button data-status="回答受付中">回答受付中</button>
-          <button data-status="採点中">採点中</button>
-          <button data-status="終了">終了</button>
+        <div class="status-current">現在のステータス：<span id="currentStatusLabel">-</span></div>
+        <div class="status-grid" id="statusSelect">
+          <button class="status-btn full" data-status="準備中">準備中</button>
+          <div class="status-row">
+            <button class="status-btn" data-status="回答受付中">回答受付開始</button>
+            <button class="status-btn" data-status="回答締切">回答締め切り</button>
+          </div>
+          <button class="status-btn full" data-status="採点締切">採点締め切り</button>
         </div>
       </div>
 
@@ -308,8 +319,8 @@
       </div>
     </div>
 
-    <div class="log-panel">
-      <div class="log-title">LOG</div>
+    <div class="log-panel" id="logPanel">
+      <div class="log-title" id="logToggle"><span class="log-toggle-icon">▼</span><span class="log-title-text">LOG</span></div>
       <div class="log-list-scroll" id="logList"><div class="log-empty">まだ記録はありません</div></div>
     </div>
   </div>
@@ -331,8 +342,12 @@
     const stageBlockBtn = document.getElementById('stageBlock');
     const stageFinalBtn = document.getElementById('stageFinal');
     const statusSelect = document.getElementById('statusSelect');
+    const currentStatusLabel = document.getElementById('currentStatusLabel');
     const participantList = document.getElementById('participantList');
     const logList = document.getElementById('logList');
+    document.getElementById('logToggle').addEventListener('click', () => {
+      document.getElementById('logPanel').classList.toggle('collapsed');
+    });
 
     if(!roomId){
       roomInfo.textContent = 'URLに ?room=部屋番号 がありません';
@@ -396,7 +411,8 @@
         stageFinalBtn.classList.toggle('active', data.maxScore === 16);
 
         const status = data.status || '準備中';
-        [...statusSelect.children].forEach((btn) => {
+        currentStatusLabel.textContent = status;
+        statusSelect.querySelectorAll('.status-btn').forEach((btn) => {
           btn.classList.toggle('active', btn.dataset.status === status);
         });
       });
@@ -413,22 +429,17 @@
       stageBlockBtn.addEventListener('click', () => setStage(10));
       stageFinalBtn.addEventListener('click', () => setStage(16));
 
+      // ステータスのボタン（IPPON表示の得点=pt は、どれを押しても0に戻る。参加者のpon得点はここでは触らない）
       statusSelect.addEventListener('click', (e) => {
-        const btn = e.target.closest('button');
+        const btn = e.target.closest('.status-btn');
         if(!btn) return;
         const status = btn.dataset.status;
-        const update = { status };
+        const update = { status, score: 0 };
         if(status === '回答受付中'){
           update.currentAnswerer = null; // 新しいラウンドなので、回答権をリセット
         }
-        if(status === '採点中'){
-          update.scoringRound = firebase.firestore.FieldValue.increment(1); // 新しい採点ラウンドの目印
-        }
-        if(status === '終了'){
-          update.score = 0; // 終了したら、次に備えてIPPON表示の得点を0に戻す
-        }
         roomRef.update(update);
-        addLog(operatorName + 'さんがステータスを「' + status + '」に変更しました', status === '終了' ? 0 : null);
+        addLog(operatorName + 'さんがステータスを「' + status + '」に変更しました', 0);
       });
 
       // ---- 回答者一覧 ----
@@ -466,7 +477,7 @@
             const id = doc.id;
             return `
               <div class="participant-row">
-                <span>${escapeHtml(p.name)}</span>
+                <span class="participant-name">${escapeHtml(p.name)}</span>
                 <div class="participant-score-wrap">
                   <button class="pm-btn" onclick="adjustParticipantScore('${id}', -1)">－</button>
                   <span class="participant-score">${p.score ?? 0} pon</span>

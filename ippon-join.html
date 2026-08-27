@@ -100,6 +100,13 @@
       const roomPassword = document.getElementById('roomPassword').value.trim();
       const name = document.getElementById('yourName').value.trim();
 
+      if(nameByteLength(name) > NAME_MAX_BYTES){
+        errorText.textContent = '名前が長すぎます（全角10文字・半角20文字くらいまで）';
+        submitBtn.disabled = false;
+        submitBtn.textContent = '入室する';
+        return;
+      }
+
       try{
         const roomSnap = await db.collection('rooms').doc(roomId).get();
         if(!roomSnap.exists){
@@ -110,17 +117,27 @@
           throw new Error('パスワードが違います');
         }
 
-        const participantRef = await db.collection('rooms').doc(roomId).collection('participants').add({
-          name,
-          role: '回答者',
-          isOwner: false,
-          score: 0,
-          joinedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
+        const participantsRef = db.collection('rooms').doc(roomId).collection('participants');
+
+        // 同じ名前の人がすでにいたら、新規追加ではなくその人として扱う（別人扱いにならないように）
+        const existing = await participantsRef.where('name', '==', name).limit(1).get();
+        let participantId;
+        if(!existing.empty){
+          participantId = existing.docs[0].id;
+        } else {
+          const participantRef = await participantsRef.add({
+            name,
+            role: '回答者',
+            isOwner: false,
+            score: 0,
+            joinedAt: firebase.firestore.FieldValue.serverTimestamp()
+          });
+          participantId = participantRef.id;
+        }
 
         // このブラウザが「自分がどの参加者か」を覚えておく（アカウントの代わり）
         localStorage.setItem('ippon-participant-' + roomId, JSON.stringify({
-          id: participantRef.id,
+          id: participantId,
           name
         }));
 

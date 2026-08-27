@@ -113,6 +113,13 @@
       const hostName = document.getElementById('hostName').value.trim();
       const roomName = document.getElementById('roomName').value.trim() || '無題の部屋';
 
+      if(nameByteLength(hostName) > NAME_MAX_BYTES){
+        errorText.textContent = '名前が長すぎます（全角10文字・半角20文字くらいまで）';
+        submitBtn.disabled = false;
+        submitBtn.textContent = '部屋を作る';
+        return;
+      }
+
       try{
         let roomId;
         for(let i = 0; i < 5; i++){
