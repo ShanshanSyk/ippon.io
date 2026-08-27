@@ -45,6 +45,7 @@
     cursor:pointer;
   }
   .menu-item-full.active{ color:var(--gold); border-left-color:var(--gold); background:rgba(255,233,0,0.06); }
+  .menu-group-label-full{ font-size:10px; color:#7A7A7A; letter-spacing:0.1em; padding:16px 22px 4px; }
   .main-col{ flex:1; display:flex; flex-direction:column; min-width:0; }
 
   /* ---- 名前変更モーダル ---- */
@@ -131,6 +132,10 @@
       <a class="menu-item-full" id="scoreLink">採点</a>
       <a class="menu-item-full" id="sidebarRenameBtn">名前を変更</a>
       <a class="menu-item-full" id="sidebarLogoutBtn">ログアウト</a>
+      <div class="menu-group-label-full" id="adminGroupLabel" style="display:none;">管理者メニュー</div>
+      <a class="menu-item-full" id="adminControlLink" style="display:none;">管理画面</a>
+      <a class="menu-item-full" id="adminParticipantsLink" style="display:none;">参加者一覧</a>
+      <a class="menu-item-full" id="adminRoomSettingsLink" style="display:none;">部屋の設定</a>
     </div>
 
     <div class="main-col">
@@ -296,9 +301,17 @@
           });
         }
 
+        document.getElementById('adminControlLink').href = 'ippon-control.html?room=' + roomId;
+        document.getElementById('adminParticipantsLink').href = 'ippon-participants.html?room=' + roomId;
+        document.getElementById('adminRoomSettingsLink').href = 'ippon-room-settings.html?room=' + roomId;
+
         myParticipantRef.onSnapshot((snap) => {
           if(!snap.exists){ kicked = true; render(); return; }
           myRole = snap.data().role || '回答者';
+          const isAdmin = myRole === '管理者';
+          ['adminGroupLabel', 'adminControlLink', 'adminParticipantsLink', 'adminRoomSettingsLink'].forEach((id) => {
+            document.getElementById(id).style.display = isAdmin ? 'block' : 'none';
+          });
           render();
         });
 
