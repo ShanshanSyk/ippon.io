@@ -281,6 +281,8 @@
         }
 
         async function pressScore(){
+          let ipponAnswererName = null;
+
           await db.runTransaction(async (tx) => {
             const roomSnap = await tx.get(roomRef);
             const pSnap = await tx.get(myParticipantRef);
@@ -293,11 +295,28 @@
             const currentCount = (p.lastRoundScored === room.scoringRound) ? (p.pressCount || 0) : 0;
             if(currentCount >= MAX_PRESSES) return;
 
-            tx.update(roomRef, { score: room.score + 1 });
+            const newScore = room.score + 1;
+            const reachedIppon = newScore >= room.maxScore && room.currentAnswerer;
+
+            // IPPON達成時は、回答者のponを+1するために先に読んでおく（トランザクションは読み込みが先）
+            let answererRef = null;
+            let answererSnap = null;
+            if(reachedIppon){
+              answererRef = participantsRef.doc(room.currentAnswerer.participantId);
+              answererSnap = await tx.get(answererRef);
+            }
+
+            tx.update(roomRef, { score: newScore });
             tx.update(myParticipantRef, {
               lastRoundScored: room.scoringRound,
               pressCount: currentCount + 1
             });
+
+            if(reachedIppon && answererSnap && answererSnap.exists){
+              const currentPon = answererSnap.data().score || 0;
+              tx.update(answererRef, { score: currentPon + 1 });
+              ipponAnswererName = room.currentAnswerer.name;
+            }
           });
 
           roomRef.collection('logs').add({
@@ -306,6 +325,15 @@
             score: null,
             at: firebase.firestore.FieldValue.serverTimestamp()
           });
+
+          if(ipponAnswererName){
+            roomRef.collection('logs').add({
+              text: 'IPPON！' + ipponAnswererName + 'さんのponが+1されました',
+              operatorName: me.name,
+              score: null,
+              at: firebase.firestore.FieldValue.serverTimestamp()
+            });
+          }
         }
 
         myParticipantRef.onSnapshot((snap) => {
