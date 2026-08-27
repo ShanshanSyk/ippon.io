@@ -138,6 +138,18 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="renameModalOverlay">
+    <div class="modal-card">
+      <div class="modal-title">名前を変更</div>
+      <input type="text" id="renameModalInput">
+      <div class="modal-counter" id="renameModalCounter"></div>
+      <div class="modal-actions">
+        <button class="modal-cancel" id="renameModalCancel">キャンセル</button>
+        <button class="modal-save" id="renameModalSave">保存</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
   <script src="firebase-init.js"></script>
@@ -272,17 +284,6 @@
       return String(str ?? '').replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     }
   </script>
-  <div class="modal-overlay" id="renameModalOverlay">
-    <div class="modal-card">
-      <div class="modal-title">名前を変更</div>
-      <input type="text" id="renameModalInput">
-      <div class="modal-counter" id="renameModalCounter"></div>
-      <div class="modal-actions">
-        <button class="modal-cancel" id="renameModalCancel">キャンセル</button>
-        <button class="modal-save" id="renameModalSave">保存</button>
-      </div>
-    </div>
-  </div>
 
 </body>
 </html>
