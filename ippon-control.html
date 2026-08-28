@@ -296,9 +296,9 @@
       <div class="status-box">
         <div class="status-current">現在のステータス：<span id="currentStatusLabel">-</span></div>
         <div class="status-grid" id="statusSelect">
-          <button class="status-btn full" data-status="準備中">準備中</button>
-          <button class="status-btn full" data-status="回答受付中">回答受付開始</button>
-          <button class="status-btn full" data-status="採点締切">採点締め切り</button>
+          <button class="status-btn full" data-from="準備中" data-status="回答受付中">受付開始</button>
+          <button class="status-btn full" data-from="回答受付中" data-status="準備中">準備中に戻す</button>
+          <button class="status-btn full" data-from="採点中" data-status="回答受付中">採点終了</button>
         </div>
       </div>
 
@@ -448,7 +448,7 @@
         currentStatus = status;
         currentStatusLabel.textContent = status;
         statusSelect.querySelectorAll('.status-btn').forEach((btn) => {
-          btn.classList.toggle('active', btn.dataset.status === status);
+          btn.style.display = btn.dataset.from === status ? 'block' : 'none';
         });
       });
 
@@ -472,6 +472,7 @@
       statusSelect.addEventListener('click', (e) => {
         const btn = e.target.closest('.status-btn');
         if(!btn) return;
+        if(btn.dataset.from !== currentStatus) return; // 今のステータスから押せないボタンは無視
         const status = btn.dataset.status;
         const update = { status, score: 0 };
         if(status === '回答受付中'){
