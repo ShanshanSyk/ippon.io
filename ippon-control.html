@@ -469,16 +469,32 @@
       stageFinalBtn.addEventListener('click', () => setStage(16));
 
       // ステータスのボタン（IPPON表示の得点=pt は、どれを押しても0に戻る。参加者のpon得点はここでは触らない）
-      statusSelect.addEventListener('click', (e) => {
+      statusSelect.addEventListener('click', async (e) => {
         const btn = e.target.closest('.status-btn');
         if(!btn) return;
         if(btn.dataset.from !== currentStatus) return; // 今のステータスから押せないボタンは無視
         const status = btn.dataset.status;
-        const update = { status, score: 0 };
-        if(status === '回答受付中'){
-          update.currentAnswerer = null; // 新しいラウンドなので、回答権をリセット
+        const isScoringEnd = btn.dataset.from === '採点中'; // 「採点終了」ボタンかどうか
+
+        if(isScoringEnd){
+          // 採点終了のときは、確定した瞬間の得点をOBS側の演出用に記録してからリセットする
+          await db.runTransaction(async (tx) => {
+            const snap = await tx.get(roomRef);
+            const data = snap.data();
+            tx.update(roomRef, {
+              status,
+              score: 0,
+              confirmedScore: data.score,
+              confirmedRound: firebase.firestore.FieldValue.increment(1)
+            });
+          });
+        } else {
+          const update = { status, score: 0 };
+          if(status === '回答受付中'){
+            update.currentAnswerer = null; // 新しいラウンドなので、回答権をリセット
+          }
+          await roomRef.update(update);
         }
-        roomRef.update(update);
         addLog(operatorName + 'さんがステータスを「' + status + '」に変更しました', 0);
       });
 
