@@ -484,7 +484,7 @@
 
       btnBackToPreparing.addEventListener('click', async () => {
         if(btnBackToPreparing.disabled) return;
-        await roomRef.update({ status: '準備中', score: 0 });
+        await roomRef.update({ status: '準備中', score: 0, currentAnswerer: null });
         addLog(operatorName + 'さんがステータスを「準備中」に変更しました', 0);
       });
 
@@ -497,6 +497,7 @@
           tx.update(roomRef, {
             status: '回答受付中',
             score: 0,
+            currentAnswerer: null,
             confirmedScore: data.score,
             confirmedRound: firebase.firestore.FieldValue.increment(1)
           });
